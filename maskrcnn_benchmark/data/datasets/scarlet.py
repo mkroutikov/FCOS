@@ -49,6 +49,11 @@ def build_boxlist(fname):
     def xyxy(elt):
         return [float(elt.attrib[x]) for x in 'ltrb']
 
-    boxlist = BoxList([xyxy(elt) for elt in xml.findall('.//block')], (width, height), mode='xyxy')
-    boxlist.add_field('labels', torch.tensor([1] * boxlist.bbox.size(-1), dtype=torch.int32))
-    return boxlist
+    boxes = [xyxy(elt) for elt in xml.findall('.//block')]
+    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+    target = BoxList(boxes, img.size, mode="xyxy")
+
+    classes = torch.tensor(classes)
+    target.add_field('labels', classes)
+
+    return target
