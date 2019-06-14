@@ -3,3 +3,5 @@ yacs
 cython
 matplotlib
 tqdm
+opencv-python
+
