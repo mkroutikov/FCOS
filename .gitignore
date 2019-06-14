@@ -31,3 +31,5 @@ dist/
 
 /cocoapi
 .venv
+.vscode
+/training_dir

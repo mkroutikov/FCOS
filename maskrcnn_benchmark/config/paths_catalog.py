@@ -130,6 +130,18 @@ class DatasetCatalog(object):
                 factory="PascalVOCDataset",
                 args=args,
             )
+        elif 'scarlet' in name:
+            if name == 'scarlet_300_train':
+                split = 'train'
+            elif name == 'scarlet_300_test':
+                split = 'test'
+            else:
+                raise NotImplementedError()
+
+            return dict(
+                factory="Scarlet300Dataset",
+                args=dict(split=split),
+            )
         raise RuntimeError("Dataset not available: {}".format(name))
 
 
