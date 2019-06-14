@@ -53,7 +53,7 @@ def build_boxlist(fname):
     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
     target = BoxList(boxes, (width, height), mode="xyxy")
 
-    classes = torch.tensor(classes)
+    classes = torch.tensor([1]*len(boxes), dtype=torch.int32)
     target.add_field('labels', classes)
 
     return target
