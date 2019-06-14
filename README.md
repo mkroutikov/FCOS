@@ -39,6 +39,10 @@ Once the installation is done, you can follow the below steps to run a quick dem
     wget https://cloudstor.aarnet.edu.au/plus/s/dDeDPBLEAt19Xrl/download -O FCOS_R_50_FPN_1x.pth
     python demo/fcos_demo.py
 
+For CPU-only machines, start demo script like this:
+
+    python demo/fcos_demo.py MODEL.DEVICE cpu
+
 
 ## Inference
 The inference command line on coco minival split:
