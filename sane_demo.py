@@ -345,7 +345,7 @@ class COCODemo(object):
             box = box.to(torch.int64)
             top_left, bottom_right = box[:2].tolist(), box[2:].tolist()
             image = cv2.rectangle(
-                image, tuple(top_left), tuple(bottom_right), tuple(color), 2
+                image, tuple(top_left), tuple(bottom_right), tuple(color), 1
             )
 
         return image
@@ -433,7 +433,7 @@ class COCODemo(object):
         """
         scores = predictions.get_field("scores").tolist()
         labels = predictions.get_field("labels").tolist()
-        labels = [self.CATEGORIES[i] for i in labels]
+        labels = ['block' for i in labels]
         boxes = predictions.bbox
 
         template = "{}: {:.2f}"
@@ -441,7 +441,7 @@ class COCODemo(object):
             x, y = box[:2]
             s = template.format(label, score)
             cv2.putText(
-                image, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1
+                image, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 128), 1
             )
 
         return image
