@@ -48,4 +48,6 @@ def build_boxlist(fname):
     def xyxy(elt):
         return [float(elt.attrib[x]) for x in 'ltrb']
 
-    return BoxList([xyxy(elt) for elt in xml.findall('.//block')], (width, height), mode='xyxy')
+    boxlist = BoxList([xyxy(elt) for elt in xml.findall('.//block')], (width, height), mode='xyxy')
+    boxlist.set_extra_info('labels', [1] * boxlist.bbox.size(-1))
+    return boxlist
