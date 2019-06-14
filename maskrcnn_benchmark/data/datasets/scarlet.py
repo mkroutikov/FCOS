@@ -49,5 +49,5 @@ def build_boxlist(fname):
         return [float(elt.attrib[x]) for x in 'ltrb']
 
     boxlist = BoxList([xyxy(elt) for elt in xml.findall('.//block')], (width, height), mode='xyxy')
-    boxlist.set_extra_info('labels', [1] * boxlist.bbox.size(-1))
+    boxlist.add_field('labels', [1] * boxlist.box.size(-1))
     return boxlist
