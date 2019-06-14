@@ -24,11 +24,8 @@ class FCOSLossComputation(object):
     This class computes the FCOS losses.
     """
 
-    def __init__(self, cfg):
-        self.cls_loss_func = SigmoidFocalLoss(
-            cfg.MODEL.FCOS.LOSS_GAMMA,
-            cfg.MODEL.FCOS.LOSS_ALPHA
-        )
+    def __init__(self, gamma, alpha):
+        self.cls_loss_func = SigmoidFocalLoss(gamma, alpha)
         # we make use of IOU Loss for bounding boxes regression,
         # but we found that L1 in log scale can yield a similar performance
         self.box_reg_loss_func = IOULoss()
@@ -188,5 +185,7 @@ class FCOSLossComputation(object):
 
 
 def make_fcos_loss_evaluator(cfg):
-    loss_evaluator = FCOSLossComputation(cfg)
-    return loss_evaluator
+    return FCOSLossComputation(
+        cfg.MODEL.FCOS.LOSS_GAMMA,
+        cfg.MODEL.FCOS.LOSS_ALPHA
+    )

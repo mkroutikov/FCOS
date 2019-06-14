@@ -3,25 +3,24 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .inference import make_fcos_postprocessor
-from .loss import make_fcos_loss_evaluator
+from .inference import FCOSPostProcessor
+from .loss import FCOSLossComputation
 
 from maskrcnn_benchmark.layers import Scale
 
 
 class FCOSHead(torch.nn.Module):
-    def __init__(self, cfg, in_channels):
+    def __init__(self, num_classes, num_convs, prior_prob, in_channels):
         """
         Arguments:
             in_channels (int): number of channels of the input feature
         """
         super(FCOSHead, self).__init__()
         # TODO: Implement the sigmoid version first.
-        num_classes = cfg.MODEL.FCOS.NUM_CLASSES - 1
 
         cls_tower = []
         bbox_tower = []
-        for i in range(cfg.MODEL.FCOS.NUM_CONVS):
+        for i in range(num_convs):
             cls_tower.append(
                 nn.Conv2d(
                     in_channels,
@@ -70,7 +69,6 @@ class FCOSHead(torch.nn.Module):
                     torch.nn.init.constant_(l.bias, 0)
 
         # initialize the bias for focal loss
-        prior_prob = cfg.MODEL.FCOS.PRIOR_PROB
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         torch.nn.init.constant_(self.cls_logits.bias, bias_value)
 
@@ -90,24 +88,45 @@ class FCOSHead(torch.nn.Module):
         return logits, bbox_reg, centerness
 
 
-class FCOSModule(torch.nn.Module):
+class FCOSModuleLight(torch.nn.Module):
     """
     Module for FCOS computation. Takes feature maps from the backbone and
     FCOS outputs and losses. Only Test on FPN now.
     """
 
-    def __init__(self, cfg, in_channels):
-        super(FCOSModule, self).__init__()
+    def __init__(self, in_channels,
+        num_classes=80,
+        num_convs=4,
+        prior_prob=0.01,
+        inference_th=0.05,
+        pre_nms_top_n=1000,
+        nms_th=0.6,
+        fpn_post_nms_top_n=100,
+        loss_gamma=2.0,
+        loss_alpha=0.25,
+        fpn_strides=[8, 16, 32, 64, 128],
+    ):
+        super(FCOSModuleLight, self).__init__()
 
-        head = FCOSHead(cfg, in_channels)
+        self.head = FCOSHead(
+            num_classes=num_classes,
+            num_convs=num_convs,
+            prior_prob=prior_prob,
+            in_channels=in_channels
+        )
 
-        box_selector_test = make_fcos_postprocessor(cfg)
+        self.box_selector_test = FCOSPostProcessor(
+            pre_nms_thresh=inference_th,
+            pre_nms_top_n=pre_nms_top_n,
+            nms_thresh=nms_th,
+            fpn_post_nms_top_n=fpn_post_nms_top_n,
+            min_size=0,
+            num_classes=num_classes+1
+        )
 
-        loss_evaluator = make_fcos_loss_evaluator(cfg)
-        self.head = head
-        self.box_selector_test = box_selector_test
-        self.loss_evaluator = loss_evaluator
-        self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES
+        self.loss_evaluator = FCOSLossComputation(loss_gamma, loss_alpha)
+
+        self.fpn_strides = fpn_strides
 
     def forward(self, images, features, targets=None):
         """
@@ -126,16 +145,15 @@ class FCOSModule(torch.nn.Module):
         """
         box_cls, box_regression, centerness = self.head(features)
         locations = self.compute_locations(features)
- 
+
         if self.training:
             return self._forward_train(
-                locations, box_cls, 
-                box_regression, 
+                locations, box_cls, box_regression,
                 centerness, targets
             )
         else:
             return self._forward_test(
-                locations, box_cls, box_regression, 
+                locations, box_cls, box_regression,
                 centerness, images.image_sizes
             )
 
@@ -152,7 +170,7 @@ class FCOSModule(torch.nn.Module):
 
     def _forward_test(self, locations, box_cls, box_regression, centerness, image_sizes):
         boxes = self.box_selector_test(
-            locations, box_cls, box_regression, 
+            locations, box_cls, box_regression,
             centerness, image_sizes
         )
         return boxes, {}
@@ -182,6 +200,16 @@ class FCOSModule(torch.nn.Module):
         shift_y = shift_y.reshape(-1)
         locations = torch.stack((shift_x, shift_y), dim=1) + stride // 2
         return locations
+
+class FCOSModule(FCOSModuleLight):
+    """
+    Module for FCOS computation. Takes feature maps from the backbone and
+    FCOS outputs and losses. Only Test on FPN now.
+    """
+
+    def __init__(self, cfg, in_channels):
+        super(FCOSModule, self).__init__(in_channels)
+
 
 def build_fcos(cfg, in_channels):
     return FCOSModule(cfg, in_channels)

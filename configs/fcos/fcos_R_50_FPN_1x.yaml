@@ -10,7 +10,7 @@ MODEL:
   RETINANET:
     USE_C5: False # FCOS uses P5 instead of C5
   FCOS:
-    NUM_CLASSES: 2
+    NUM_CLASSES: 81
 DATASETS:
   TRAIN: ("scarlet_300_train",)
   TEST: ("scarlet_300_test",)

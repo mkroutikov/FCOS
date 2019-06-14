@@ -33,3 +33,4 @@ dist/
 .venv
 .vscode
 /training_dir
+/demo/scarlet_images

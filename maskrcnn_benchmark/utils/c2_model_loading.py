@@ -161,9 +161,8 @@ C2_FORMAT_LOADER = Registry()
 @C2_FORMAT_LOADER.register("R-101-FPN")
 @C2_FORMAT_LOADER.register("R-101-FPN-RETINANET")
 @C2_FORMAT_LOADER.register("R-152-FPN")
-def load_resnet_c2_format(cfg, f):
+def load_resnet_c2_format(conv_body, f):
     state_dict = _load_c2_pickled_weights(f)
-    conv_body = cfg.MODEL.BACKBONE.CONV_BODY
     arch = conv_body.replace("-C4", "").replace("-C5", "").replace("-FPN", "")
     arch = arch.replace("-RETINANET", "")
     stages = _C2_STAGE_NAMES[arch]
@@ -171,5 +170,5 @@ def load_resnet_c2_format(cfg, f):
     return dict(model=state_dict)
 
 
-def load_c2_format(cfg, f):
-    return C2_FORMAT_LOADER[cfg.MODEL.BACKBONE.CONV_BODY](cfg, f)
+def load_c2_format(conv_body, f):
+    return C2_FORMAT_LOADER[conv_body](conv_body, f)
