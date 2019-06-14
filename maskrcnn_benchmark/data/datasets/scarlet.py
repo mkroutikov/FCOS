@@ -7,7 +7,7 @@ from PIL import Image
 
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from ilabs.curate import ic
-import numpy as np
+import torch
 import lxml.etree as et
 
 
@@ -50,5 +50,5 @@ def build_boxlist(fname):
         return [float(elt.attrib[x]) for x in 'ltrb']
 
     boxlist = BoxList([xyxy(elt) for elt in xml.findall('.//block')], (width, height), mode='xyxy')
-    boxlist.add_field('labels', np.array([1] * boxlist.bbox.size(-1), dtype=np.int32))
+    boxlist.add_field('labels', torch.tensor([1] * boxlist.bbox.size(-1), dtype=torch.int32))
     return boxlist
