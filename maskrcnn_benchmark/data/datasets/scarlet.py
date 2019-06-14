@@ -25,6 +25,7 @@ class Scarlet300Dataset:
         img = Image.open(self._images[item]).convert("RGB")
         target = self._boxes[item]
 
+        target = target.clip_to_image(remove_empty=True)
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
