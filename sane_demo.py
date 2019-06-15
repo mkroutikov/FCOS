@@ -4,7 +4,6 @@ import cv2, os
 import torch
 import torch.nn as nn
 from torchvision import transforms as T
-from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.modeling.backbone import resnet, fpn as fpn_module
 from maskrcnn_benchmark.modeling.make_layers import conv_with_kaiming_uniform
@@ -173,25 +172,30 @@ class COCODemo(object):
 
     def __init__(
         self,
-        cfg,
+        checkpoint,
         confidence_thresholds_for_classes,
         show_mask_heatmaps=False,
         masks_per_dim=2,
         min_image_size=224,
+        device='cpu',
+        input_to_bgr255=True,
+        input_pixel_mean = (102.9801, 115.9465, 122.7717),
+        input_pixel_std = [1., 1., 1.],
+        size_divisibility=32,
+        draw_masks = False,
+        draw_keypoints = False,
     ):
-        self.cfg = cfg.clone()
         self.model = GeneralizedRCNN(num_classes=1)
         self.model.eval()
-        self.device = torch.device(cfg.MODEL.DEVICE)
+        self.device = torch.device(device)
         self.model.to(self.device)
         self.min_image_size = min_image_size
 
-        save_dir = cfg.OUTPUT_DIR
         from maskrcnn_benchmark.utils.checkpoint import Checkpointer
-        checkpointer = Checkpointer(self.model, save_dir=save_dir)
-        _ = checkpointer.load(cfg.MODEL.WEIGHT)
+        checkpointer = Checkpointer(self.model, save_dir='')
+        _ = checkpointer.load(checkpoint)
 
-        self.transforms = self.build_transform()
+        self.transforms = self.build_transform(input_to_bgr255, input_pixel_mean, input_pixel_std)
 
         mask_threshold = -1 if show_mask_heatmaps else 0.5
         self.masker = Masker(threshold=mask_threshold, padding=1)
@@ -203,25 +207,25 @@ class COCODemo(object):
         self.confidence_thresholds_for_classes = torch.tensor(confidence_thresholds_for_classes)
         self.show_mask_heatmaps = show_mask_heatmaps
         self.masks_per_dim = masks_per_dim
+        self.size_divisibility = size_divisibility
+        self.draw_masks = draw_masks
+        self.draw_keypoints = draw_keypoints
 
-    def build_transform(self):
+    def build_transform(self, convert_to_bgr255, pixel_mean, pixel_std):
         """
         Creates a basic transformation that was used to train the models
         """
-        cfg = self.cfg
 
         # we are loading images with OpenCV, so we don't need to convert them
         # to BGR, they are already! So all we need to do is to normalize
         # by 255 if we want to convert to BGR255 format, or flip the channels
         # if we want it to be in RGB in [0-1] range.
-        if cfg.INPUT.TO_BGR255:
+        if convert_to_bgr255:
             to_bgr_transform = T.Lambda(lambda x: x * 255)
         else:
             to_bgr_transform = T.Lambda(lambda x: x[[2, 1, 0]])
 
-        normalize_transform = T.Normalize(
-            mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD
-        )
+        normalize_transform = T.Normalize(mean=pixel_mean, std=pixel_std)
 
         transform = T.Compose(
             [
@@ -251,9 +255,9 @@ class COCODemo(object):
         if self.show_mask_heatmaps:
             return self.create_mask_montage(result, top_predictions)
         result = self.overlay_boxes(result, top_predictions)
-        if self.cfg.MODEL.MASK_ON:
+        if self.draw_masks:
             result = self.overlay_mask(result, top_predictions)
-        if self.cfg.MODEL.KEYPOINT_ON:
+        if self.draw_keypoints:
             result = self.overlay_keypoints(result, top_predictions)
         result = self.overlay_class_names(result, top_predictions)
 
@@ -272,8 +276,7 @@ class COCODemo(object):
         # apply pre-processing to image
         image = self.transforms(original_image)
         # convert to an ImageList, padded so that it is divisible by
-        # cfg.DATALOADER.SIZE_DIVISIBILITY
-        image_list = to_image_list(image, self.cfg.DATALOADER.SIZE_DIVISIBILITY)
+        image_list = to_image_list(image, self.size_divisibility)
         image_list = image_list.to(self.device)
         # compute predictions
         with torch.no_grad():
@@ -450,14 +453,10 @@ class COCODemo(object):
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Webcam Demo")
     parser.add_argument(
-        "--config-file",
-        default="configs/fcos/fcos_R_50_FPN_1x.yaml",
-        metavar="FILE",
-        help="path to config file",
-    )
-    parser.add_argument(
-        "--weights",
-        default="FCOS_R_50_FPN_1x.pth",
+        "--checkpoint",
+        '-c',
+        required=True,
+        # default="FCOS_R_50_FPN_1x.pth",
         metavar="FILE",
         help="path to the trained model",
     )
@@ -467,28 +466,9 @@ def main():
         metavar="DIR",
         help="path to demo images directory",
     )
-    parser.add_argument(
-        "--min-image-size",
-        type=int,
-        default=800,
-        help="Smallest size of the image to feed to the model. "
-            "Model was trained with 800, which gives best results",
-    )
-    parser.add_argument(
-        "opts",
-        help="Modify model config options using the command-line",
-        default=None,
-        nargs=argparse.REMAINDER,
-    )
 
     args = parser.parse_args()
 
-    # load config from file and command-line arguments
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.MODEL.WEIGHT = args.weights
-
-    cfg.freeze()
 
     # The following per-class thresholds are computed by maximizing
     # per-class f-measure in their precision-recall curve.
@@ -527,9 +507,9 @@ def main():
 
     # prepare object that handles inference plus adds predictions on top of image
     coco_demo = COCODemo(
-        cfg,
+        args.checkpoint,
         confidence_thresholds_for_classes=thresholds_for_classes,
-        min_image_size=args.min_image_size
+        min_image_size=800,
     )
 
     for im_name in demo_im_names:
