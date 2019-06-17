@@ -26,7 +26,7 @@ from fcos_loss import FCOSLossComputation
 from fcos_post_processor import FCOSPostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 
-from summary_writer import SummaryWriter
+from summary_writer import TensorboardSummary
 
 
 def reduce_loss_dict(loss_dict):
@@ -200,7 +200,7 @@ def train(
         start_iter=start_iter,
     )
 
-    summary = SummaryWriter(logdir=output_dir)
+    summary = TensorboardSummary(logdir=output_dir)
 
     logging.info("Start training")
     meters = MetricLogger(delimiter="  ")
