@@ -11,6 +11,7 @@ import argparse
 import os
 import logging
 import glob
+import json
 
 import torch
 from maskrcnn_benchmark.data.collate_batch import BatchCollator
@@ -153,14 +154,21 @@ def train(
     pre_nms_top_n=1000,
     nms_th=0.6,
     fpn_post_nms_top_n=100,
+    batch_size=10,
+    base_lr=0.001,
+    weight_decay=0.0001,
 ):
+    params = locals()
+    with open(output_dir + '/params.json', 'w') as f:
+        json.dump(params, f, indent=4)
+
     model = FCOSModel(num_classes=1)
     device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
     criterion = FCOSLossComputation(loss_gamma, loss_alpha)
 
-    optimizer = make_optimizer(model)
+    optimizer = make_optimizer(model, base_lr=base_lr, weight_decay=weight_decay)
     scheduler = WarmupMultiStepLR(
         optimizer,
         warmup_milestones,
@@ -198,6 +206,7 @@ def train(
     data_loader = make_train_data_loader(
         is_distributed=distributed,
         start_iter=start_iter,
+        batch_size=batch_size,
     )
 
     summary = TensorboardSummary(logdir=output_dir)
@@ -291,6 +300,8 @@ def main():
     parser.add_argument('--output_dir', default='runs', help='where to write models and stats')
     parser.add_argument('--resume', help='filename of a model to resume training with')
     parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--lr", type=float, default=0.001)
 
     args = parser.parse_args()
 
@@ -311,7 +322,14 @@ def main():
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
 
-    train(output_dir, args.local_rank, args.distributed, resume=args.resume)
+    train(
+        output_dir,
+        args.local_rank,
+        args.distributed,
+        resume=args.resume,
+        base_lr=args.lr,
+        batch_size=args.batch_size,
+    )
 
 
 if __name__ == "__main__":
