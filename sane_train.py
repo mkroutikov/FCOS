@@ -20,12 +20,12 @@ from maskrcnn_benchmark.utils.comm import synchronize, get_rank, get_world_size
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
-from maskrcnn_benchmark.data.datasets.scarlet import Scarlet300Dataset
+from scarlet_dataset import Scarlet300Dataset
 from fcos_model import FCOSModel
 from fcos_loss import FCOSLossComputation
 from maskrcnn_benchmark.structures.image_list import to_image_list
 
-from tensorboardX import SummaryWriter
+from summary_writer import SummaryWriter
 
 
 def reduce_loss_dict(loss_dict):
@@ -147,6 +147,11 @@ def train(
     print_every=20,
     loss_gamma=2.0,
     loss_alpha=0.25,
+    image_every=1,
+    inference_th=0.05,
+    pre_nms_top_n=1000,
+    nms_th=0.6,
+    fpn_post_nms_top_n=100,
 ):
     model = FCOSModel(num_classes=1)
     device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
@@ -162,6 +167,15 @@ def train(
         warmup_factor=warmup_factor,
         warmup_iters=warmup_iters,
         warmup_method=warmup_method,
+    )
+
+    box_selector = FCOSPostProcessor(
+        pre_nms_thresh=inference_th,
+        pre_nms_top_n=pre_nms_top_n,
+        nms_thresh=nms_th,
+        fpn_post_nms_top_n=fpn_post_nms_top_n,
+        min_size=0,
+        num_classes=2  # here we count background??? -MK
     )
 
     if distributed:
@@ -246,6 +260,12 @@ def train(
                     'scheduler': scheduler.state_dict(),
                     'iteration': iteration+1,
                 }, fname)
+
+        if (iteration+1) % image_every == 0:
+            with torch.no_grad():
+                predictions = self.box_selector(logits, image_list.image_sizes)
+
+            summary.visualize_box(images.tensors[0], targets[0], predictions[0].to(torch.device('cpu')), iteration+1)
 
     return model
 
