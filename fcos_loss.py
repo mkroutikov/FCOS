@@ -121,7 +121,7 @@ def prepare_targets(points, targets):
     expanded_object_sizes_of_interest = torch.cat(expanded_object_sizes_of_interest, dim=0)
     num_points_per_level = [len(points_per_level) for points_per_level in points]
     points_all_level = torch.cat(points, dim=0)
-    labels, reg_targets = self.compute_targets_for_locations(
+    labels, reg_targets = compute_targets_for_locations(
         points_all_level, targets, expanded_object_sizes_of_interest
     )
 
