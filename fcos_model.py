@@ -51,9 +51,6 @@ class FCOSModel(nn.Module):
         Returns: TODO
 
         """
-        if self.training and targets is None:
-            raise ValueError("In training mode, targets should be passed")
-
         features = self.backbone(images.tensors)
         return self.rpn(images, features)
 
