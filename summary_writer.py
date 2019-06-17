@@ -36,7 +36,7 @@ class TensorboardSummary(SummaryWriter):
             for x0,y0,x1,y1 in output.bbox:
                 cv.rectangle(c, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 0, 255))
 
-        cv.imshow('XXX', c)
+        # cv.imshow('XXX', c)
 
         bitmap = torch.from_numpy(c).float().permute(2, 0, 1)
 
