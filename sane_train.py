@@ -264,7 +264,7 @@ def train(
 
         if (iteration+1) % image_every == 0:
             with torch.no_grad():
-                predictions = box_selector(logits, image_list.image_sizes)
+                predictions = box_selector(logits, images.image_sizes)
 
             summary.visualize_box(images.tensors[0], targets[0], predictions[0].to(torch.device('cpu')), iteration+1)
 
