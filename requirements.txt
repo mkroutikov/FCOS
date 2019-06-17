@@ -4,4 +4,8 @@ cython
 matplotlib
 tqdm
 opencv-python
-
+tensorboardX   # temporarily, until torch.util.tensorboard is ready
+torch
+torchvision
+pycocotools
+ilabs.curate

@@ -23,6 +23,8 @@ from maskrcnn_benchmark.data import transforms as T
 from maskrcnn_benchmark.data.datasets.scarlet import Scarlet300Dataset
 from fcos_model import FCOSModel
 
+from tensorboardX import SummaryWriter
+
 
 def reduce_loss_dict(loss_dict):
     """
@@ -133,7 +135,6 @@ def train(
     output_dir,
     local_rank,
     distributed=False,
-    device='cpu',
     save_every=2500,
     resume=None,
     warmup_milestones = (60000, 80000),
@@ -144,7 +145,7 @@ def train(
     print_every=20,
 ):
     model = FCOSModel(num_classes=1)
-    device = torch.device(device)
+    device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
     optimizer = make_optimizer(model)
@@ -178,6 +179,8 @@ def train(
         start_iter=start_iter,
     )
 
+    summary = SummaryWriter(logdir=output_dir)
+
     logging.info("Start training")
     meters = MetricLogger(delimiter="  ")
     max_iter = len(data_loader)
@@ -204,6 +207,8 @@ def train(
         optimizer.step()
 
         if (iteration+1) % print_every == 0 or (iteration+1) == max_iter:
+            for name,value in loss_dict_reduced.items():
+                summary.add_scalar(name, value, global_step=iteration+1)
             logging.info(
                 meters.delimiter.join(
                     [
@@ -255,6 +260,8 @@ def main():
 
     args = parser.parse_args()
 
+    output_dir = experiment_dir(base_dir=args.output_dir)
+
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1
 
@@ -264,8 +271,6 @@ def main():
             backend="nccl", init_method="env://"
         )
         synchronize()
-
-    output_dir = experiment_dir(base_dir=args.output_dir)
 
     logger = setup_logger("fcos", output_dir, get_rank())
     logger.info("Using {} GPUs".format(num_gpus))
