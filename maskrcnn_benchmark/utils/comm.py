@@ -11,19 +11,15 @@ import torch.distributed as dist
 
 
 def get_world_size():
-    if not dist.is_available():
-        return 1
-    if not dist.is_initialized():
-        return 1
-    return dist.get_world_size()
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_world_size()
+    return 1
 
 
 def get_rank():
-    if not dist.is_available():
-        return 0
-    if not dist.is_initialized():
-        return 0
-    return dist.get_rank()
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_rank()
+    return 0
 
 
 def is_main_process():
@@ -35,14 +31,8 @@ def synchronize():
     Helper function to synchronize (barrier) among all processes when
     using distributed training
     """
-    if not dist.is_available():
-        return
-    if not dist.is_initialized():
-        return
-    world_size = dist.get_world_size()
-    if world_size == 1:
-        return
-    dist.barrier()
+    if get_world_size() > 1:
+        dist.barrier()
 
 
 def all_gather(data):
@@ -98,8 +88,9 @@ def reduce_dict(input_dict, average=True):
     input_dict, after reduction.
     """
     world_size = get_world_size()
-    if world_size < 2:
+    if world_size == 1:
         return input_dict
+
     with torch.no_grad():
         names = []
         values = []
@@ -114,4 +105,5 @@ def reduce_dict(input_dict, average=True):
             # world_size in this case
             values /= world_size
         reduced_dict = {k: v for k, v in zip(names, values)}
+
     return reduced_dict

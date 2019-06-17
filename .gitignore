@@ -34,3 +34,4 @@ dist/
 .vscode
 /training_dir
 /demo/scarlet_images
+/runs

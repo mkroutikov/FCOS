@@ -5,170 +5,13 @@ import torch
 import torch.nn as nn
 from torchvision import transforms as T
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
-from maskrcnn_benchmark.modeling.backbone import resnet, fpn as fpn_module
-from maskrcnn_benchmark.modeling.make_layers import conv_with_kaiming_uniform
 from maskrcnn_benchmark.structures.image_list import to_image_list
-from collections import OrderedDict
+from fcos_model import FCOSModel
 
 import time
 
-def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256, out_channels=256, use_c5=False, use_gn=False, use_relu=False):
-    stem_module = resnet.StemWithFixedBatchNorm(stem_out_channels)
-    stage_specs = [  # R-50-FPN-RETINANET
-        resnet.StageSpec(index=1, block_count=3, return_features=True),
-        resnet.StageSpec(index=2, block_count=4, return_features=True),
-        resnet.StageSpec(index=3, block_count=6, return_features=True),
-        resnet.StageSpec(index=4, block_count=3, return_features=True)
-    ]
-    transformation_module = resnet.BottleneckWithFixedBatchNorm
-
-    body = resnet.ResNetLight(stem_module, stage_specs, transformation_module)
-
-    in_channels_p6p7 = in_channels_stage2 * 8 if use_c5 else out_channels
-    fpn = fpn_module.FPN(
-        in_channels_list=[
-            0,
-            in_channels_stage2 * 2,
-            in_channels_stage2 * 4,
-            in_channels_stage2 * 8,
-        ],
-        out_channels=out_channels,
-        conv_block=conv_with_kaiming_uniform(use_gn, use_relu),
-        top_blocks=fpn_module.LastLevelP6P7(in_channels_p6p7, out_channels),
-    )
-    model = nn.Sequential(OrderedDict([("body", body), ("fpn", fpn)]))
-    model.out_channels = out_channels
-    return model
-
-
-class GeneralizedRCNN(nn.Module):
-    """
-    Main class for Generalized R-CNN. Currently supports boxes and masks.
-    It consists of three main parts:
-    - backbone
-    - rpn
-    - heads: takes the features + the proposals from the RPN and computes
-        detections / masks from it.
-    """
-
-    def __init__(self, num_classes=80):
-        super(GeneralizedRCNN, self).__init__()
-
-        self.backbone = build_resnet_fpn_p3p7_backbone()
-        from maskrcnn_benchmark.modeling.rpn.fcos.fcos import FCOSModuleLight
-        self.rpn = FCOSModuleLight(in_channels=self.backbone.out_channels, num_classes=num_classes)
-        self.roi_heads = []
-
-    def forward(self, images, targets=None):
-        """
-        Arguments:
-            images (list[Tensor] or ImageList): images to be processed
-            targets (list[BoxList]): ground-truth boxes present in the image (optional)
-
-        Returns:
-            result (list[BoxList] or dict[Tensor]): the output from the model.
-                During training, it returns a dict[Tensor] which contains the losses.
-                During testing, it returns list[BoxList] contains additional fields
-                like `scores`, `labels` and `mask` (for Mask R-CNN models).
-
-        """
-        if self.training and targets is None:
-            raise ValueError("In training mode, targets should be passed")
-        images = to_image_list(images)
-        features = self.backbone(images.tensors)
-        proposals, proposal_losses = self.rpn(images, features, targets)
-
-        if self.training:
-            return proposal_losses
-        else:
-            return proposals
-
 
 class COCODemo(object):
-    # COCO categories for pretty print
-    CATEGORIES = [
-        "__background",
-        "person",
-        "bicycle",
-        "car",
-        "motorcycle",
-        "airplane",
-        "bus",
-        "train",
-        "truck",
-        "boat",
-        "traffic light",
-        "fire hydrant",
-        "stop sign",
-        "parking meter",
-        "bench",
-        "bird",
-        "cat",
-        "dog",
-        "horse",
-        "sheep",
-        "cow",
-        "elephant",
-        "bear",
-        "zebra",
-        "giraffe",
-        "backpack",
-        "umbrella",
-        "handbag",
-        "tie",
-        "suitcase",
-        "frisbee",
-        "skis",
-        "snowboard",
-        "sports ball",
-        "kite",
-        "baseball bat",
-        "baseball glove",
-        "skateboard",
-        "surfboard",
-        "tennis racket",
-        "bottle",
-        "wine glass",
-        "cup",
-        "fork",
-        "knife",
-        "spoon",
-        "bowl",
-        "banana",
-        "apple",
-        "sandwich",
-        "orange",
-        "broccoli",
-        "carrot",
-        "hot dog",
-        "pizza",
-        "donut",
-        "cake",
-        "chair",
-        "couch",
-        "potted plant",
-        "bed",
-        "dining table",
-        "toilet",
-        "tv",
-        "laptop",
-        "mouse",
-        "remote",
-        "keyboard",
-        "cell phone",
-        "microwave",
-        "oven",
-        "toaster",
-        "sink",
-        "refrigerator",
-        "book",
-        "clock",
-        "vase",
-        "scissors",
-        "teddy bear",
-        "hair drier",
-        "toothbrush",
-    ]
 
     def __init__(
         self,
@@ -185,7 +28,7 @@ class COCODemo(object):
         draw_masks = False,
         draw_keypoints = False,
     ):
-        self.model = GeneralizedRCNN(num_classes=1)
+        self.model = FCOSModel(num_classes=1)
         self.model.eval()
         self.device = torch.device(device)
         self.model.to(self.device)
@@ -444,6 +287,9 @@ class COCODemo(object):
             x, y = box[:2]
             s = template.format(label, score)
             cv2.putText(
+                image, s, (x+1, y+1), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 3
+            )
+            cv2.putText(
                 image, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, .5, (0, 0, 128), 1
             )
 
@@ -523,6 +369,7 @@ def main():
     print("Press any keys to exit ...")
     cv2.waitKey()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
