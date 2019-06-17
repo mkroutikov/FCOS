@@ -23,6 +23,7 @@ from maskrcnn_benchmark.data import transforms as T
 from scarlet_dataset import Scarlet300Dataset
 from fcos_model import FCOSModel
 from fcos_loss import FCOSLossComputation
+from fcos_post_processor import FCOSPostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 
 from summary_writer import SummaryWriter
