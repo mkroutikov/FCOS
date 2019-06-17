@@ -4,6 +4,7 @@ from maskrcnn_benchmark.structures.image_list import to_image_list
 from maskrcnn_benchmark.modeling.make_layers import conv_with_kaiming_uniform
 from torch import nn
 import torch
+from maskrcnn_benchmark.modeling.rpn.fcos.fcos import FCOSHead, FCOSLossComputation, FCOSPostProcessor
 
 
 def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256, out_channels=256, use_c5=False, use_gn=False, use_relu=False):
@@ -35,44 +36,94 @@ def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256,
     return model
 
 class FCOSModel(nn.Module):
-    """
-    Main class for Generalized R-CNN. Currently supports boxes and masks.
-    It consists of three main parts:
-    - backbone
-    - rpn
-    - heads: takes the features + the proposals from the RPN and computes
-        detections / masks from it.
-    """
-
     def __init__(self, num_classes=80):
         super(FCOSModel, self).__init__()
 
         self.backbone = build_resnet_fpn_p3p7_backbone()
-        from maskrcnn_benchmark.modeling.rpn.fcos.fcos import FCOSModuleLight
         self.rpn = FCOSModuleLight(in_channels=self.backbone.out_channels, num_classes=num_classes)
-        self.roi_heads = []
 
-    def forward(self, images, targets=None):
+    def forward(self, images):
         """
         Arguments:
-            images (list[Tensor] or ImageList): images to be processed
+            images (ImageList): images to be processed
             targets (list[BoxList]): ground-truth boxes present in the image (optional)
 
-        Returns:
-            result (list[BoxList] or dict[Tensor]): the output from the model.
-                During training, it returns a dict[Tensor] which contains the losses.
-                During testing, it returns list[BoxList] contains additional fields
-                like `scores`, `labels` and `mask` (for Mask R-CNN models).
+        Returns: TODO
 
         """
         if self.training and targets is None:
             raise ValueError("In training mode, targets should be passed")
-        images = to_image_list(images)
+
         features = self.backbone(images.tensors)
-        proposals, proposal_losses = self.rpn(images, features, targets)
+        return self.rpn(images, features)
 
-        if self.training:
-            return proposal_losses
-        else:
-            return proposals
 
+class FCOSModuleLight(torch.nn.Module):
+    """
+    Module for FCOS computation. Takes feature maps from the backbone and
+    FCOS outputs and losses. Only Test on FPN now.
+    """
+
+    def __init__(self, in_channels,
+        num_classes=80,
+        num_convs=4,
+        prior_prob=0.01,
+        fpn_strides=[8, 16, 32, 64, 128],
+    ):
+        super(FCOSModuleLight, self).__init__()
+
+        self.head = FCOSHead(
+            num_classes=num_classes,
+            num_convs=num_convs,
+            prior_prob=prior_prob,
+            in_channels=in_channels
+        )
+
+        self.fpn_strides = fpn_strides
+
+    def forward(self, images, features, targets=None):
+        """
+        Arguments:
+            images (ImageList): images for which we want to compute the predictions
+            features (list[Tensor]): features computed from the images that are
+                used for computing the predictions. Each tensor in the list
+                correspond to different feature levels
+            targets (list[BoxList): ground-truth boxes present in the image (optional)
+
+        Returns:
+            boxes (list[BoxList]): the predicted boxes from the RPN, one BoxList per
+                image.
+            losses (dict[Tensor]): the losses for the model during training. During
+                testing, it is an empty dict.
+        """
+        box_cls, box_regression, centerness = self.head(features)
+        locations = self.compute_locations(features)
+
+        return locations, box_cls, box_regression, centerness
+
+    def compute_locations(self, features):
+        locations = []
+        for level, feature in enumerate(features):
+            h, w = feature.size()[-2:]
+            locations_per_level = self.compute_locations_per_level(
+                h, w, self.fpn_strides[level],
+                feature.device
+            )
+            locations.append(locations_per_level)
+
+        return locations
+
+    def compute_locations_per_level(self, h, w, stride, device):
+        shifts_x = torch.arange(
+            0, w * stride, step=stride,
+            dtype=torch.float32, device=device
+        )
+        shifts_y = torch.arange(
+            0, h * stride, step=stride,
+            dtype=torch.float32, device=device
+        )
+        shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x)
+        shift_x = shift_x.reshape(-1)
+        shift_y = shift_y.reshape(-1)
+
+        return torch.stack((shift_x, shift_y), dim=1) + stride // 2

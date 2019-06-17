@@ -6,7 +6,7 @@ import torch.nn as nn
 from torchvision import transforms as T
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.image_list import to_image_list
-from fcos_model import FCOSModel
+from fcos_model import FCOSModel, FCOSPostProcessor
 
 import time
 
@@ -27,9 +27,23 @@ class COCODemo(object):
         size_divisibility=32,
         draw_masks = False,
         draw_keypoints = False,
+        inference_th=0.05,
+        pre_nms_top_n=1000,
+        nms_th=0.6,
+        fpn_post_nms_top_n=100,
     ):
         self.model = FCOSModel(num_classes=1)
         self.model.eval()
+
+        self.box_selector = FCOSPostProcessor(
+            pre_nms_thresh=inference_th,
+            pre_nms_top_n=pre_nms_top_n,
+            nms_thresh=nms_th,
+            fpn_post_nms_top_n=fpn_post_nms_top_n,
+            min_size=0,
+            num_classes=2  # here we count background??? -MK
+        )
+
         self.device = torch.device(device)
         self.model.to(self.device)
         self.min_image_size = min_image_size
@@ -123,10 +137,16 @@ class COCODemo(object):
         image_list = image_list.to(self.device)
         # compute predictions
         with torch.no_grad():
-            predictions = self.model(image_list)
+            locations, box_cls, box_regression, centerness = self.model(image_list)
+            predictions = self.box_selector(
+                locations, box_cls, box_regression,
+                centerness, image_list.image_sizes
+            )
+
         predictions = [o.to(self.cpu_device) for o in predictions]
 
         # always single image is passed at a time
+        assert len(predictions) == 1
         prediction = predictions[0]
 
         # reshape prediction (a BoxList) into the original image size

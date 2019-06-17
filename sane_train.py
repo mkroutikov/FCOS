@@ -21,7 +21,8 @@ from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
 from maskrcnn_benchmark.data.datasets.scarlet import Scarlet300Dataset
-from fcos_model import FCOSModel
+from fcos_model import FCOSModel, FCOSLossComputation
+from maskrcnn_benchmark.structures.image_list import to_image_list
 
 from tensorboardX import SummaryWriter
 
@@ -143,10 +144,14 @@ def train(
     warmup_iters=500,
     warmup_method='constant',
     print_every=20,
+    loss_gamma=2.0,
+    loss_alpha=0.25,
 ):
     model = FCOSModel(num_classes=1)
     device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
     model.to(device)
+
+    criterion = FCOSLossComputation(loss_gamma, loss_alpha)
 
     optimizer = make_optimizer(model)
     scheduler = WarmupMultiStepLR(
@@ -191,9 +196,19 @@ def train(
         scheduler.step()
 
         images = images.to(device)
+        images = to_image_list(images)
+
         targets = [target.to(device) for target in targets]
 
-        loss_dict = model(images, targets)
+        locations, box_cls, box_regression, centerness = model(images, targets)
+        loss_box_cls, loss_box_reg, loss_centerness = self.criterion(
+            locations, box_cls, box_regression, centerness, targets
+        )
+        loss_dict = {
+            "loss_cls": loss_box_cls,
+            "loss_reg": loss_box_reg,
+            "loss_centerness": loss_centerness
+        }
 
         losses = sum(loss for loss in loss_dict.values())
 
@@ -218,7 +233,7 @@ def train(
                         "max mem: {memory:.0f}",
                     ]
                 ).format(
-                    iter=iteration,
+                    iter=iteration+1,
                     meters=str(meters),
                     lr=optimizer.param_groups[0]["lr"],
                     memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
