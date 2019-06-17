@@ -4,7 +4,7 @@ from maskrcnn_benchmark.structures.image_list import to_image_list
 from maskrcnn_benchmark.modeling.make_layers import conv_with_kaiming_uniform
 from torch import nn
 import torch
-from maskrcnn_benchmark.modeling.rpn.fcos.fcos import FCOSHead, FCOSLossComputation, FCOSPostProcessor
+from maskrcnn_benchmark.modeling.rpn.fcos.fcos import FCOSHead, FCOSPostProcessor
 
 
 def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256, out_channels=256, use_c5=False, use_gn=False, use_relu=False):

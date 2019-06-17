@@ -21,7 +21,8 @@ from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
 from maskrcnn_benchmark.data.datasets.scarlet import Scarlet300Dataset
-from fcos_model import FCOSModel, FCOSLossComputation
+from fcos_model import FCOSModel
+from fcos_loss import FCOSLossComputation
 from maskrcnn_benchmark.structures.image_list import to_image_list
 
 from tensorboardX import SummaryWriter
