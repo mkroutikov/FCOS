@@ -96,7 +96,12 @@ class FCOSModuleLight(torch.nn.Module):
         box_cls, box_regression, centerness = self.head(features)
         locations = self.compute_locations(features)
 
-        return locations, box_cls, box_regression, centerness
+        return {
+            'locations'     : locations,
+            'box_cls'       : box_cls,
+            'box_regression': box_regression,
+            'centerness'    : centerness,
+        }
 
     def compute_locations(self, features):
         locations = []

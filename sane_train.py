@@ -200,15 +200,8 @@ def train(
 
         targets = [target.to(device) for target in targets]
 
-        locations, box_cls, box_regression, centerness = model(images)
-        loss_box_cls, loss_box_reg, loss_centerness = self.criterion(
-            locations, box_cls, box_regression, centerness, targets
-        )
-        loss_dict = {
-            "loss_cls": loss_box_cls,
-            "loss_reg": loss_box_reg,
-            "loss_centerness": loss_centerness
-        }
+        logits = model(images)
+        loss_dict = criterion(logits, targets)
 
         losses = sum(loss for loss in loss_dict.values())
 
