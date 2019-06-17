@@ -200,7 +200,7 @@ def train(
 
         targets = [target.to(device) for target in targets]
 
-        locations, box_cls, box_regression, centerness = model(images, targets)
+        locations, box_cls, box_regression, centerness = model(images)
         loss_box_cls, loss_box_reg, loss_centerness = self.criterion(
             locations, box_cls, box_regression, centerness, targets
         )
@@ -241,7 +241,7 @@ def train(
             )
         if (iteration + 1) % save_every == 0 or iteration + 1 == max_iter:
             if get_rank() == 0:  # only master process saves model in distributed settings
-                fname = os.path.join(output_dir, "model_{:07d}".format(iteration+1))
+                fname = os.path.join(output_dir, "model_{:07d}.pth".format(iteration+1))
                 torch.save({
                     'model': model.state_dict(),
                     'optimizer': optimizer.state_dict(),
