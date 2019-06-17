@@ -7,7 +7,7 @@ import torch
 from torch.nn import functional as F
 from torch import nn
 
-from maskrcnn_benchmark.modeling.utils import concat_box_prediction_layers
+from maskrcnn_benchmark.modeling.rpn.utils import concat_box_prediction_layers
 from maskrcnn_benchmark.layers import IOULoss
 from maskrcnn_benchmark.layers import SigmoidFocalLoss
 from maskrcnn_benchmark.modeling.matcher import Matcher
