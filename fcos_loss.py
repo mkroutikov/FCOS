@@ -96,9 +96,9 @@ class FCOSLossComputation(object):
             centerness_loss = centerness_flatten.sum()
 
         return {
-            'cls_loss': cls_loss,
-            'reg_loss': reg_loss,
-            'centerness_loss': centerness_loss,
+            'loss_cls': cls_loss,
+            'loss_reg': reg_loss,
+            'loss_centerness': centerness_loss,
         }
 
 
