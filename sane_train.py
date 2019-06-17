@@ -148,7 +148,7 @@ def train(
     print_every=20,
     loss_gamma=2.0,
     loss_alpha=0.25,
-    image_every=1,
+    image_every=100,
     inference_th=0.05,
     pre_nms_top_n=1000,
     nms_th=0.6,
