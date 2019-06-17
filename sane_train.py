@@ -245,7 +245,7 @@ def train(
             for name,value in loss_dict_reduced.items():
                 summary.add_scalar(name, value, global_step=iteration+1)
 
-            summary.add_scalar('lr', lr)
+            summary.add_scalar('lr', lr, global_step=iteration+1)
             logging.info(
                 meters.delimiter.join(
                     [
