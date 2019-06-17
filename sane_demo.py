@@ -6,7 +6,8 @@ import torch.nn as nn
 from torchvision import transforms as T
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.image_list import to_image_list
-from fcos_model import FCOSModel, FCOSPostProcessor
+from fcos_model import FCOSModel
+from fcos_post_processor import FCOSPostProcessor
 
 import time
 
@@ -137,11 +138,8 @@ class COCODemo(object):
         image_list = image_list.to(self.device)
         # compute predictions
         with torch.no_grad():
-            locations, box_cls, box_regression, centerness = self.model(image_list)
-            predictions = self.box_selector(
-                locations, box_cls, box_regression,
-                centerness, image_list.image_sizes
-            )
+            logits = self.model(image_list)
+            predictions = self.box_selector(logits, image_list.image_sizes)
 
         predictions = [o.to(self.cpu_device) for o in predictions]
 
