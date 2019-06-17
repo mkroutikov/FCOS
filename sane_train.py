@@ -275,6 +275,7 @@ def main():
     logger = setup_logger("fcos", output_dir, get_rank())
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
+    logging.basicConfig(level=logging.INFO)
 
     train(output_dir, args.local_rank, args.distributed, resume=args.resume)
 
