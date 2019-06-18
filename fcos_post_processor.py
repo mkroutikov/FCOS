@@ -184,21 +184,3 @@ class FCOSPostProcessor(torch.nn.Module):
                 result = result[keep]
             results.append(result)
         return results
-
-
-def make_fcos_postprocessor(config):
-    pre_nms_thresh = config.MODEL.FCOS.INFERENCE_TH
-    pre_nms_top_n = config.MODEL.FCOS.PRE_NMS_TOP_N
-    nms_thresh = config.MODEL.FCOS.NMS_TH
-    fpn_post_nms_top_n = config.TEST.DETECTIONS_PER_IMG
-
-    box_selector = FCOSPostProcessor(
-        pre_nms_thresh=pre_nms_thresh,
-        pre_nms_top_n=pre_nms_top_n,
-        nms_thresh=nms_thresh,
-        fpn_post_nms_top_n=fpn_post_nms_top_n,
-        min_size=0,
-        num_classes=config.MODEL.FCOS.NUM_CLASSES
-    )
-
-    return box_selector

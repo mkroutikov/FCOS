@@ -45,23 +45,23 @@ class FCOSModel(nn.Module):
         self.backbone = build_resnet_fpn_p3p7_backbone()
         self.rpn = FCOSModuleLight(in_channels=self.backbone.out_channels, num_classes=num_classes)
 
-    def forward(self, images):
+    def forward(self, image_tensors):
         """
         Arguments:
-            images (ImageList): images to be processed
-            targets (list[BoxList]): ground-truth boxes present in the image (optional)
+            image_tensors: list of image tensors to be processed
 
-        Returns: TODO
+        Returns:
+            list of candidate boxes (can be further filterd)
 
         """
-        features = self.backbone(images.tensors)
-        return self.rpn(images, features)
+        features = self.backbone(image_tensors)
+        return self.rpn(features)
 
 
 class FCOSModuleLight(torch.nn.Module):
     """
     Module for FCOS computation. Takes feature maps from the backbone and
-    FCOS outputs and losses. Only Test on FPN now.
+    FCOS outputs. Only Test on FPN now.
     """
 
     def __init__(self, in_channels,
@@ -81,7 +81,7 @@ class FCOSModuleLight(torch.nn.Module):
 
         self.fpn_strides = fpn_strides
 
-    def forward(self, images, features, targets=None):
+    def forward(self, features):
         """
         Arguments:
             images (ImageList): images for which we want to compute the predictions

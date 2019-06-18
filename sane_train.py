@@ -225,7 +225,7 @@ def train(
 
         targets = [target.to(device) for target in targets]
 
-        logits = model(images)
+        logits = model(images.tensors)
         loss_dict = criterion(logits, targets)
 
         losses = sum(loss for loss in loss_dict.values())
