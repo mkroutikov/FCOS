@@ -12,14 +12,14 @@ import lxml.etree as et
 
 
 class Scarlet300Dataset:
-    def __init__(self, split, transforms=None):
+    def __init__(self, split, transforms=None, single_block=False):
         assert split in ('test', 'train')
         self.split = split
         self.transforms = transforms
 
         dataset = ic.get_dataset('ilabs.vision', 'scarlet300')
         self._images = sorted(x for x in dataset[split] if x.endswith('.png'))
-        self._boxes = [build_boxlist(x[:-4] + '.xml') for x in self._images]
+        self._boxes = [build_boxlist(x[:-4] + '.xml', single_block=single_block) for x in self._images]
 
     def __getitem__(self, item):
         img = Image.open(self._images[item]).convert("RGB")
@@ -39,7 +39,7 @@ class Scarlet300Dataset:
         return dict(width=width, height=height)
 
 
-def build_boxlist(fname):
+def build_boxlist(fname, single_block=False):
 
     with open(fname, 'rb') as f:
         xml = et.fromstring(f.read())
@@ -51,6 +51,8 @@ def build_boxlist(fname):
         return [float(elt.attrib[x]) for x in 'ltrb']
 
     boxes = [xyxy(elt) for elt in xml.findall('.//block')]
+    if single_block:
+        boxes = boxes[:1]
     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
     target = BoxList(boxes, (width, height), mode="xyxy")
 
