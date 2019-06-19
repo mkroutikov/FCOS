@@ -90,7 +90,7 @@ def build_transforms(is_train=True, min_size=800, max_size=1333, flip_prob=0.5, 
         )
 
 
-def make_train_data_loader(is_distributed=False, start_iter=0, image_size_divisibility=32, num_workers=1, batch_size=2, num_iters=90000, shuffle=True):
+def make_train_data_loader(is_distributed=False, start_iter=0, image_size_divisibility=32, num_workers=1, batch_size=2, num_iters=90000, shuffle=True, single_block=False):
     num_gpus = get_world_size()
     assert batch_size % num_gpus == 0, "batch_size ({}) must be divisible by the number "
     "of GPUs ({}) used.".format(batch_size, num_gpus)
@@ -111,7 +111,7 @@ def make_train_data_loader(is_distributed=False, start_iter=0, image_size_divisi
 
     transforms = build_transforms(is_train=True)
 
-    dataset = Scarlet300Dataset('train', transforms=transforms)
+    dataset = Scarlet300Dataset('train', transforms=transforms, single_block=single_block)
 
     if is_distributed:
         sampler = samplers.DistributedSampler(dataset, shuffle=shuffle)
@@ -157,6 +157,7 @@ def train(
     batch_size=10,
     base_lr=0.001,
     weight_decay=0.0001,
+    single_block=False,
 ):
     params = locals()
     with open(output_dir + '/params.json', 'w') as f:
@@ -207,6 +208,7 @@ def train(
         is_distributed=distributed,
         start_iter=start_iter,
         batch_size=batch_size,
+        single_block=single_block,
     )
 
     summary = TensorboardSummary(logdir=output_dir)
@@ -302,6 +304,7 @@ def main():
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--lr", type=float, default=0.001)
+    parser.add_argument("--single-block", action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -329,6 +332,7 @@ def main():
         resume=args.resume,
         base_lr=args.lr,
         batch_size=args.batch_size,
+        single_block=args.single_block,
     )
 
 
