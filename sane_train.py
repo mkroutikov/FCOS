@@ -21,8 +21,8 @@ from maskrcnn_benchmark.utils.comm import synchronize, get_rank, get_world_size
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
-import transforms as TT
-from scarlet_dataset import Scarlet300Dataset
+import transforms_mask as TTT
+from scarlet_mask_dataset import Scarlet300MaskDataset
 from fcos_model import FCOSModel
 from fcos_loss import FCOSLossComputation
 from fcos_post_processor import FCOSPostProcessor
@@ -73,20 +73,22 @@ def make_optimizer(model, base_lr=0.001, weight_decay=0.0001, bias_lr_factor=2, 
 
 def build_transforms(is_train=True, min_size=800, max_size=1333, flip_prob=0.5, input_pixel_mean=(102.9801, 115.9465, 122.7717), input_pixel_std=(1., 1., 1.), convert_to_bgr255=True):
     if is_train:
-        return T.Compose(
+        return TTT.Compose(
             [
-                TT.PadToDivisibility(32),
-                TT.RandomCrop(32, 32),
-                T.ToTensor(),
-                T.Normalize(mean=input_pixel_mean, std=input_pixel_std, to_bgr255=convert_to_bgr255)
+                TTT.PadToDivisibility(32),
+                TTT.RandomCrop(32, 32),
+                TTT.ToTensor(),
+                TTT.Normalize(mean=input_pixel_mean, std=input_pixel_std, to_bgr255=convert_to_bgr255),
+                TTT.MakeMaskChannel(),
             ]
         )
     else:
-        return T.Compose(
+        return TTT.Compose(
             [
-                TT.PadToDivisibility(32),
-                T.ToTensor(),
-                T.Normalize(mean=input_pixel_mean, std=input_pixel_std, to_bgr255=convert_to_bgr255)
+                TTT.PadToDivisibility(32),
+                TTT.ToTensor(),
+                TTT.Normalize(mean=input_pixel_mean, std=input_pixel_std, to_bgr255=convert_to_bgr255),
+                TTT.MakeMaskChannel(),
             ]
         )
 
@@ -112,7 +114,7 @@ def make_train_data_loader(is_distributed=False, start_iter=0, image_size_divisi
 
     transforms = build_transforms(is_train=True)
 
-    dataset = Scarlet300Dataset('train', transforms=transforms, single_block=single_block)
+    dataset = Scarlet300MaskDataset('train', transforms=transforms)
 
     if is_distributed:
         sampler = samplers.DistributedSampler(dataset, shuffle=shuffle)
@@ -131,7 +133,7 @@ def make_train_data_loader(is_distributed=False, start_iter=0, image_size_divisi
         dataset,
         num_workers=num_workers,
         batch_sampler=batch_sampler,
-        collate_fn=BatchCollator(image_size_divisibility),  # FIXME - do we correctly fill with white?
+        collate_fn=TTT.BatchCollator(),
     )
 
     return data_loader
@@ -199,7 +201,8 @@ def train(
     start_iter = 0
     if resume is not None:
         assert os.path.exists(resume)
-        state_dict = torch.load(resume)
+        state_dict = torch.load(resume, map_location=device)
+        fix_34_channels(state_dict['model'])
         model.load_state_dict(state_dict['model'])
         optimizer.load_state_dict(state_dict['optimizer'])
         scheduler.load_state_dict(state_dict['scheduler'])
@@ -219,7 +222,7 @@ def train(
     max_iter = len(data_loader)
 
     model.train()
-    for iteration, (images, targets, _) in enumerate(data_loader, start_iter):
+    for iteration, (images, _, targets, _) in enumerate(data_loader, start_iter):
 
         scheduler.step()
 
@@ -296,6 +299,20 @@ def experiment_dir(base_dir='runs'):
     os.makedirs(dirname)
 
     return dirname
+
+
+def fix_34_channels(state_dict):
+    weight = state_dict['backbone.body.stem.conv1.weight']
+    if weight.shape[1] == 4:
+        return  # all good, nothing to do
+    assert weight.shape[1] == 3  # RGB - three input channels
+
+    extra_shape = list(weight.shape)
+    extra_shape[1] = 1  # adding one more channel
+    extra = torch.zeros(*extra_shape).normal_(0., 0.001)
+
+    new_weight = torch.cat([weight, extra], dim=1)
+    state_dict['backbone.body.stem.conv1.weight'] = new_weight
 
 
 def main():

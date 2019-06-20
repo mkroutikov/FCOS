@@ -3,7 +3,7 @@
 Simple dataset class that wraps a list of path names
 """
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from ilabs.curate import ic
@@ -25,7 +25,7 @@ class Scarlet300MaskDataset:
 
         self._index = []
         for i in range(len(self._images)):
-            for j in range(boxlens[i]):
+            for j in range(boxlens[i] + 1):
                 self._index.append( (i, j) )
 
     def __getitem__(self, item):
@@ -39,7 +39,6 @@ class Scarlet300MaskDataset:
             x0, y0, x1, y1 = xy[0], xy[1], xy[2], xy[3]
             draw.rectangle((x0, y0, x1, y1), fill=255)
 
-        import pdb; pdb.set_trace()
         if j < len(boxes):
             idx = torch.tensor([j])
             target = boxes[idx].clip_to_image(remove_empty=True)
@@ -47,9 +46,9 @@ class Scarlet300MaskDataset:
             target = boxes.empty()
 
         if self.transforms is not None:
-            img, mask, target = self.transforms(img, mask, target)
+            (img, mask, target), _ = self.transforms(img, mask, target)
 
-        return img, mask, target
+        return img, mask, target, item
 
     def __len__(self):
         return len(self._images)
@@ -83,16 +82,22 @@ def build_boxlist(fname, single_block=False):
 
 
 if __name__ == '__main__':
-    from transforms_mask import PadToDivisibility, RandomCrop
+    from transforms_mask import PadToDivisibility, RandomCrop, Compose, ToTensor, Normalize, MakeMaskChannel
     from matplotlib import pyplot as plt
     from PIL import Image, ImageDraw
 
-    transform = RandomCrop(32, 32)
+    transform = Compose([
+        PadToDivisibility(32),
+        RandomCrop(32, 32),
+        ToTensor(),
+        Normalize(mean=(102.9801, 115.9465, 122.7717), std=(1., 1., 1.)),
+        MakeMaskChannel(),
+    ])
     dataset = Scarlet300MaskDataset(split='train', transforms=transform)
 
-    for i in range(5):
-        image, mask, target = dataset[i]
-        print(target.bbox)
+    for i in range(15):
+        image, mask, target, _ = dataset[i]
+        continue
 
         draw = ImageDraw.Draw(image)
         for xy in target.convert('xyxy').bbox:

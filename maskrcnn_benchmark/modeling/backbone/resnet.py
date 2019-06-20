@@ -336,11 +336,11 @@ class Bottleneck(nn.Module):
 
 
 class BaseStem(nn.Module):
-    def __init__(self, out_channels, norm_func):
+    def __init__(self, out_channels, norm_func, input_channels=3):
         super(BaseStem, self).__init__()
 
         self.conv1 = Conv2d(
-            3, out_channels, kernel_size=7, stride=2, padding=3, bias=False
+            input_channels, out_channels, kernel_size=7, stride=2, padding=3, bias=False
         )
         self.bn1 = norm_func(out_channels)
 
@@ -379,10 +379,11 @@ class BottleneckWithFixedBatchNorm(Bottleneck):
 
 
 class StemWithFixedBatchNorm(BaseStem):
-    def __init__(self, out_channels):
+    def __init__(self, out_channels, in_channels=3):
         super(StemWithFixedBatchNorm, self).__init__(
             out_channels=out_channels,
-            norm_func=FrozenBatchNorm2d
+            norm_func=FrozenBatchNorm2d,
+            input_channels=in_channels,
         )
 
 

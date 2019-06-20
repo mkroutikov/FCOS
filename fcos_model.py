@@ -10,7 +10,7 @@ import torch
 
 
 def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256, out_channels=256, use_c5=False, use_gn=False, use_relu=False):
-    stem_module = resnet.StemWithFixedBatchNorm(stem_out_channels)
+    stem_module = resnet.StemWithFixedBatchNorm(stem_out_channels, in_channels=4)
     stage_specs = [  # R-50-FPN-RETINANET
         resnet.StageSpec(index=1, block_count=3, return_features=True),
         resnet.StageSpec(index=2, block_count=4, return_features=True),

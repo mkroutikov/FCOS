@@ -39,8 +39,13 @@ class TensorboardSummary(SummaryWriter):
         # cv.imshow('XXX', c)
 
         bitmap = torch.from_numpy(c).float().permute(2, 0, 1)
+        if bitmap.shape[0] == 4:
+            # masked input
+            lst = [bitmap[:3,:,:], bitmap[3,:,:]]
+        else:
+            lst = [bitmap]
 
-        sample = make_grid([bitmap], 1, normalize=True, scale_each=True)
+        sample = make_grid(lst, 1, normalize=True, scale_each=True)
 
         self.add_image(title, sample, global_step)
 
