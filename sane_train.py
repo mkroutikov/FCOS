@@ -298,6 +298,8 @@ def experiment_dir(base_dir='runs'):
     dirname = base_dir + '/%04d' % experiment_no
     os.makedirs(dirname)
 
+    logging.info('Experiment directory: %s', dirname)
+
     return dirname
 
 
