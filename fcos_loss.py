@@ -150,6 +150,12 @@ def compute_targets_for_locations(locations, targets, object_sizes_of_interest):
         targets_per_im = targets[im_i]
         assert targets_per_im.mode == "xyxy"
         bboxes = targets_per_im.bbox
+
+        if bboxes.shape[0] == 0:  # no objects!
+            labels.append(torch.zeros(locations.shape[0], dtype=torch.int64, device=bboxes.device))
+            reg_targets.append(torch.zeros(locations.shape[0], 4, dtype=torch.float32, device=bboxes.device))
+            continue
+
         labels_per_im = targets_per_im.get_field("labels")
         area = targets_per_im.area()
 
