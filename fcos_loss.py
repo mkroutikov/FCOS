@@ -152,7 +152,7 @@ def compute_targets_for_locations(locations, targets, object_sizes_of_interest):
         bboxes = targets_per_im.bbox
 
         if bboxes.shape[0] == 0:  # no objects!
-            labels.append(torch.zeros(locations.shape[0], dtype=torch.int64, device=bboxes.device))
+            labels.append(torch.zeros(locations.shape[0], dtype=torch.int32, device=bboxes.device))
             reg_targets.append(torch.zeros(locations.shape[0], 4, dtype=torch.float32, device=bboxes.device))
             continue
 
