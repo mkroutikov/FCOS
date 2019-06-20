@@ -309,7 +309,7 @@ def fix_34_channels(state_dict):
 
     extra_shape = list(weight.shape)
     extra_shape[1] = 1  # adding one more channel
-    extra = torch.zeros(*extra_shape).normal_(0., 0.001)
+    extra = torch.zeros(*extra_shape, device=weight.device).normal_(0., 0.001)
 
     new_weight = torch.cat([weight, extra], dim=1)
     state_dict['backbone.body.stem.conv1.weight'] = new_weight
