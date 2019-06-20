@@ -29,7 +29,7 @@ class Scarlet300Dataset:
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        return img, target
+        return img, target, item
 
     def __len__(self):
         return len(self._images)
