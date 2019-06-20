@@ -28,24 +28,25 @@ class TensorboardSummary(SummaryWriter):
         bitmap = bitmap.astype(np.uint8)
         c = bitmap.copy()
 
+        mask = None
+        if bitmap.shape[-1] == 4:
+            bitmap, mask = bitmap[:,:,:3], bitmap[:,:,3:].repeat(1, 1, 3)
+
         if target is not None:
             for x0,y0,x1,y1 in target.bbox:
-                cv.rectangle(c, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 255, 0))
+                cv.rectangle(bitmap, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 255, 0))
 
         if output is not None:
             for x0,y0,x1,y1 in output.bbox:
-                cv.rectangle(c, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 0, 255))
+                cv.rectangle(bitmap, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 0, 255))
 
         # cv.imshow('XXX', c)
-
-        bitmap = torch.from_numpy(c).float().permute(2, 0, 1)
-        if bitmap.shape[0] == 4:
-            # masked input
-            lst = [bitmap[:3,:,:], bitmap[3,:,:].repeat(3, 1, 1)]
+        bitmap = torch.from_numpy(bitmap).float().permute(2, 0, 1)
+        if mask is not None:
+            mask = torch.from_numpy(mask).float().permute(2, 0, 1)
+            sample = make_grid([bitmap, mask], 2, normalize=True, scale_each=True)
         else:
-            lst = [bitmap]
-
-        sample = make_grid(lst, 1, normalize=True, scale_each=True)
+            sample = make_grid([bitmap], 1, normalize=True, scale_each=True)
 
         self.add_image(title, sample, global_step)
 
