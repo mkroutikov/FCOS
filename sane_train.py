@@ -73,7 +73,7 @@ def make_optimizer(model, base_lr=0.001, weight_decay=0.0001, bias_lr_factor=2, 
 
 def build_transforms(is_train=True, min_size=800, max_size=1333, flip_prob=0.5, input_pixel_mean=(102.9801, 115.9465, 122.7717), input_pixel_std=(1., 1., 1.), convert_to_bgr255=True):
     if is_train:
-        T.Compose(
+        return T.Compose(
             [
                 TT.PadToDivisibility(32),
                 TT.RandomCrop(32, 32),
