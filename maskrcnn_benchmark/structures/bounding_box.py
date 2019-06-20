@@ -226,6 +226,9 @@ class BoxList(object):
             bbox.add_field(k, v[item])
         return bbox
 
+    def empty(self):
+        return BoxList(self.bbox[:0], self.size, self.mode)
+
     def __len__(self):
         return self.bbox.shape[0]
 
