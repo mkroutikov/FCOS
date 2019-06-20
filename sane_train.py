@@ -21,6 +21,7 @@ from maskrcnn_benchmark.utils.comm import synchronize, get_rank, get_world_size
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
+import transforms as TT
 from scarlet_dataset import Scarlet300Dataset
 from fcos_model import FCOSModel
 from fcos_loss import FCOSLossComputation
@@ -72,10 +73,10 @@ def make_optimizer(model, base_lr=0.001, weight_decay=0.0001, bias_lr_factor=2, 
 
 def build_transforms(is_train=True, min_size=800, max_size=1333, flip_prob=0.5, input_pixel_mean=(102.9801, 115.9465, 122.7717), input_pixel_std=(1., 1., 1.), convert_to_bgr255=True):
     if is_train:
-        return T.Compose(
+        T.Compose(
             [
-                T.Resize(min_size, max_size),
-                T.RandomHorizontalFlip(flip_prob),
+                TT.PadToDivisibility(32),
+                TT.RandomCrop(32, 32),
                 T.ToTensor(),
                 T.Normalize(mean=input_pixel_mean, std=input_pixel_std, to_bgr255=convert_to_bgr255)
             ]
@@ -83,7 +84,7 @@ def build_transforms(is_train=True, min_size=800, max_size=1333, flip_prob=0.5, 
     else:
         return T.Compose(
             [
-                T.Resize(min_size, max_size),
+                TT.PadToDivisibility(32),
                 T.ToTensor(),
                 T.Normalize(mean=input_pixel_mean, std=input_pixel_std, to_bgr255=convert_to_bgr255)
             ]

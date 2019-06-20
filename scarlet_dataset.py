@@ -29,7 +29,7 @@ class Scarlet300Dataset:
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
-        return img, target, item
+        return img, target
 
     def __len__(self):
         return len(self._images)
@@ -60,3 +60,25 @@ def build_boxlist(fname, single_block=False):
     target.add_field('labels', classes)
 
     return target
+
+
+if __name__ == '__main__':
+    from transforms import PadToDivisibility, RandomCrop
+    from matplotlib import pyplot as plt
+    from PIL import Image, ImageDraw
+
+    transform = RandomCrop(32, 32)
+    dataset = Scarlet300Dataset(split='train', transforms=transform)
+
+    for i in range(5):
+        image, target = dataset[i]
+
+        draw = ImageDraw.Draw(image)
+        for xy in target.convert('xyxy').bbox:
+            x0, y0, x1, y1 = xy[0], xy[1], xy[2], xy[3]
+            draw.rectangle((x0, y0, x1, y1), outline=(255, 0, 0))
+
+        plt.figure()
+        plt.imshow(image)
+
+    plt.show()

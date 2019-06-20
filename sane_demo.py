@@ -135,6 +135,7 @@ def main():
     # per-class f-measure in their precision-recall curve.
     # Please see compute_thresholds_for_classes() in coco_eval.py for details.
     thresholds_for_classes = [
+        0.1,
         0.23860901594161987, 0.24108672142028809, 0.2470853328704834,
         0.2316885143518448, 0.2708061933517456, 0.23173952102661133,
         0.31990334391593933, 0.21302376687526703, 0.20151866972446442,
@@ -207,6 +208,7 @@ def main():
             scores = prediction.get_field("scores")
             _, idx = scores.sort(0, descending=True)
             top_predictions = prediction[idx]
+            top_predictions = top_predictions[:1]
 
             composite = overlay_boxes(img.copy(), top_predictions)
             composite = overlay_class_names(composite, top_predictions)

@@ -153,12 +153,14 @@ def compute_targets_for_locations(locations, targets, object_sizes_of_interest):
         labels_per_im = targets_per_im.get_field("labels")
         area = targets_per_im.area()
 
+        # relative box size for each location
         l = xs[:, None] - bboxes[:, 0][None]
         t = ys[:, None] - bboxes[:, 1][None]
         r = bboxes[:, 2][None] - xs[:, None]
         b = bboxes[:, 3][None] - ys[:, None]
         reg_targets_per_im = torch.stack([l, t, r, b], dim=2)
 
+        # find locations that are inside boxes
         is_in_boxes = reg_targets_per_im.min(dim=2)[0] > 0
 
         max_reg_targets_per_im = reg_targets_per_im.max(dim=2)[0]

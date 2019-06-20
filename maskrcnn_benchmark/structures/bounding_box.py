@@ -192,6 +192,24 @@ class BoxList(object):
             bbox.add_field(k, v)
         return bbox.convert(self.mode)
 
+    def pad(self, l, t, r, b):
+        mode = self.mode
+        xmin, ymin, xmax, ymax = self._split_into_xyxy()
+        xmin = xmin + l
+        xmax = xmax + l
+        ymin = ymin + t
+        ymax = ymax + t
+
+        w, h = self.size
+        h += (t + b)
+        w += (l + r)
+
+        bbox = torch.cat((xmin, ymin, xmax, ymax), dim=-1)
+        bbox = BoxList(bbox, (w, h), mode='xyxy').convert(mode)
+        bbox._copy_extra_fields(self)
+
+        return bbox
+
     # Tensor-like methods
 
     def to(self, device):
