@@ -9,7 +9,6 @@ class PadToDivisibility:
         self.divisibility = divisibility
 
     def __call__(self, image, target):
-        import pdb; pdb.set_trace()
         w, h = image.size
 
         d = self.divisibility
