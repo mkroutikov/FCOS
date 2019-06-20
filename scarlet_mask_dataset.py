@@ -43,7 +43,8 @@ class Scarlet300MaskDataset:
             idx = torch.tensor([j])
             target = boxes[idx].clip_to_image(remove_empty=True)
         else:
-            target = boxes.empty()
+            idx = torch.tensor([], dtype=torch.int64)
+            target = boxes[idx].clip_to_image(remove_empty=True)
 
         if self.transforms is not None:
             (img, mask, target), _ = self.transforms(img, mask, target)
