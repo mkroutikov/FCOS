@@ -26,22 +26,22 @@ class TensorboardSummary(SummaryWriter):
         bmax = bitmap.max()
         bitmap = (bitmap-bmin) * 255 / (bmax-bmin)
         bitmap = bitmap.astype(np.uint8)
-        c = bitmap.copy()
 
         mask = None
         if bitmap.shape[-1] == 4:
             bitmap, mask = bitmap[:,:,:3], np.repeat(bitmap[:,:,3:], 3, axis=2)
+        c = bitmap.copy()
 
         if target is not None:
             for x0,y0,x1,y1 in target.bbox:
-                cv.rectangle(bitmap, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 255, 0))
+                cv.rectangle(c, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 255, 0))
 
         if output is not None:
             for x0,y0,x1,y1 in output.bbox:
-                cv.rectangle(bitmap, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 0, 255))
+                cv.rectangle(c, (int(x0), int(y0)), (int(x1), int(y1)), color=(0, 0, 255))
 
         # cv.imshow('XXX', c)
-        bitmap = torch.from_numpy(bitmap).float().permute(2, 0, 1)
+        bitmap = torch.from_numpy(c).float().permute(2, 0, 1)
         if mask is not None:
             mask = torch.from_numpy(mask).float().permute(2, 0, 1)
             sample = make_grid([bitmap, mask], 2, normalize=True, scale_each=True)
