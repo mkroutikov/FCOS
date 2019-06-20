@@ -30,7 +30,7 @@ class TensorboardSummary(SummaryWriter):
 
         mask = None
         if bitmap.shape[-1] == 4:
-            bitmap, mask = bitmap[:,:,:3], bitmap[:,:,3:].repeat(1, 1, 3)
+            bitmap, mask = bitmap[:,:,:3], np.repeat(bitmap[:,:,3:], 3, axis=2)
 
         if target is not None:
             for x0,y0,x1,y1 in target.bbox:
