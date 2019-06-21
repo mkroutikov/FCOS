@@ -320,6 +320,8 @@ def fix_34_channels(state_dict):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
     parser.add_argument('--output_dir', default='runs', help='where to write models and stats')
     parser.add_argument('--resume', help='filename of a model to resume training with')
@@ -343,7 +345,6 @@ def main():
         )
         synchronize()
 
-    logging.basicConfig(level=logging.INFO)
     logger = setup_logger("fcos", output_dir, get_rank())
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
