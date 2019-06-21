@@ -161,6 +161,7 @@ def train(
     base_lr=0.001,
     weight_decay=0.0001,
     single_block=False,
+    fine_tune=False,
 ):
     params = locals()
     with open(output_dir + '/params.json', 'w') as f:
@@ -204,9 +205,10 @@ def train(
         state_dict = torch.load(resume, map_location=device)
         fix_34_channels(state_dict['model'])
         model.load_state_dict(state_dict['model'])
-        optimizer.load_state_dict(state_dict['optimizer'])
-        scheduler.load_state_dict(state_dict['scheduler'])
-        start_iter = state_dict['iteration']
+        if not fine_tune:
+            optimizer.load_state_dict(state_dict['optimizer'])
+            scheduler.load_state_dict(state_dict['scheduler'])
+            start_iter = state_dict['iteration']
 
     data_loader = make_train_data_loader(
         is_distributed=distributed,
@@ -325,6 +327,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--single-block", action='store_true', default=False)
+    parser.add_argument("--fine-tune", "-ft", action='store_true', default=False, help="do not restore optimizer and scheduler state")
 
     args = parser.parse_args()
 
@@ -353,6 +356,7 @@ def main():
         base_lr=args.lr,
         batch_size=args.batch_size,
         single_block=args.single_block,
+        fine_tume=args.fine_tune,
     )
 
 
