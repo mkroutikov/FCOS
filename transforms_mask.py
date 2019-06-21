@@ -25,7 +25,8 @@ class PadToDivisibility:
         b = height - h - t
 
         image = ImageOps.expand(image, (l, t, r, b), fill='white')
-        mask  = ImageOps.expand(mask, (l, t, r, b), fill=0)
+        if mask is not None:
+            mask  = ImageOps.expand(mask, (l, t, r, b), fill=0)
         if target is not None:
             target = target.pad(l, t, r, b)
 
@@ -82,7 +83,8 @@ class Normalize(object):
         image, mask, target = av
         if self.to_bgr255:
             image = image[[2, 1, 0]] * 255
-            mask = mask * 255 - 128.
+            if mask is not None:
+                mask = mask * 255 - 128.
         image = F.normalize(image, mean=self.mean, std=self.std)
         return (image, mask, target), {}
 

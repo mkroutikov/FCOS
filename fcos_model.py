@@ -9,8 +9,8 @@ from torch import nn
 import torch
 
 
-def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256, out_channels=256, use_c5=False, use_gn=False, use_relu=False):
-    stem_module = resnet.StemWithFixedBatchNorm(stem_out_channels, in_channels=4)
+def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256, out_channels=256, use_c5=False, use_gn=False, use_relu=False, num_input_channels=4):
+    stem_module = resnet.StemWithFixedBatchNorm(stem_out_channels, in_channels=num_input_channels)
     stage_specs = [  # R-50-FPN-RETINANET
         resnet.StageSpec(index=1, block_count=3, return_features=True),
         resnet.StageSpec(index=2, block_count=4, return_features=True),
@@ -19,7 +19,7 @@ def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256,
     ]
     transformation_module = resnet.BottleneckWithFixedBatchNorm
 
-    body = resnet.ResNetLight(stem_module, stage_specs, transformation_module)
+    body = resnet.ResNetLight(stem_module, stage_specs, transformation_module, freeze_conv_body_at=-1)
 
     in_channels_p6p7 = in_channels_stage2 * 8 if use_c5 else out_channels
     fpn = fpn_module.FPN(
@@ -39,10 +39,10 @@ def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256,
 
 
 class FCOSModel(nn.Module):
-    def __init__(self, num_classes=80):
+    def __init__(self, num_classes=80, num_input_channels=4):
         super(FCOSModel, self).__init__()
 
-        self.backbone = build_resnet_fpn_p3p7_backbone()
+        self.backbone = build_resnet_fpn_p3p7_backbone(num_input_channels=num_input_channels)
         self.rpn = FCOSModuleLight(in_channels=self.backbone.out_channels, num_classes=num_classes)
 
     def forward(self, image_tensors):

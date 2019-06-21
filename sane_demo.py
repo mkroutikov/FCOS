@@ -1,15 +1,18 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import argparse
 import cv2, os
+from PIL import Image, ImageDraw
 import torch
 import torch.nn as nn
 from torchvision import transforms as T
+import transforms_mask as TTT
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.image_list import to_image_list
 from fcos_model import FCOSModel
 from fcos_post_processor import FCOSPostProcessor
 import contextlib
 import time
+import matplotlib.pyplot as plt
 
 
 @contextlib.contextmanager
@@ -21,29 +24,17 @@ def timeit(title='Time elapsed'):
         print('%s: %.2fs' % (title, (time.time()-start)))
 
 
-def build_transform(convert_to_bgr255=True, pixel_mean=(102.9801, 115.9465, 122.7717), pixel_std=(1., 1., 1.), min_image_size=224):
+def build_transform(convert_to_bgr255=True, pixel_mean=(102.9801, 115.9465, 122.7717), pixel_std=(1., 1., 1.)):
     """
     Creates a basic transformation that was used to train the models
     """
 
-    # we are loading images with OpenCV, so we don't need to convert them
-    # to BGR, they are already! So all we need to do is to normalize
-    # by 255 if we want to convert to BGR255 format, or flip the channels
-    # if we want it to be in RGB in [0-1] range.
-    if convert_to_bgr255:
-        to_bgr_transform = T.Lambda(lambda x: x * 255)
-    else:
-        to_bgr_transform = T.Lambda(lambda x: x[[2, 1, 0]])
-
-    normalize_transform = T.Normalize(mean=pixel_mean, std=pixel_std)
-
-    transform = T.Compose(
+    transform = TTT.Compose(
         [
-            T.ToPILImage(),
-            T.Resize(min_image_size),
-            T.ToTensor(),
-            to_bgr_transform,
-            normalize_transform,
+            TTT.PadToDivisibility(32),
+            TTT.ToTensor(),
+            TTT.Normalize(mean=pixel_mean, std=pixel_std, to_bgr255=convert_to_bgr255),
+            TTT.MakeMaskChannel(),
         ]
     )
     return transform
@@ -73,12 +64,11 @@ def overlay_boxes(image, predictions):
 
     colors = compute_colors_for_labels(labels).tolist()
 
+    draw = ImageDraw.Draw(image)
     for box, color in zip(boxes, colors):
         box = box.to(torch.int64)
-        top_left, bottom_right = box[:2].tolist(), box[2:].tolist()
-        image = cv2.rectangle(
-            image, tuple(top_left), tuple(bottom_right), tuple(color), 1
-        )
+        xyxy = box[0], box[1], box[2], box[3]
+        draw.rectangle(xyxy, outline=(0, 255, 0))
 
     return image
 
@@ -135,7 +125,7 @@ def main():
     # per-class f-measure in their precision-recall curve.
     # Please see compute_thresholds_for_classes() in coco_eval.py for details.
     thresholds_for_classes = [
-        0.1,
+        0.05,
         0.23860901594161987, 0.24108672142028809, 0.2470853328704834,
         0.2316885143518448, 0.2708061933517456, 0.23173952102661133,
         0.31990334391593933, 0.21302376687526703, 0.20151866972446442,
@@ -165,8 +155,9 @@ def main():
         0.1730124056339264, 0.1857597529888153
     ]
 
+    model = FCOSModel(num_classes=1, num_input_channels=4)
     state_dict = torch.load(args.checkpoint, map_location='cpu')
-    model = FCOSModel(num_classes=1)
+    import pdb; pdb.set_trace()
     model.load_state_dict(state_dict['model'])
     model.eval()
 
@@ -179,45 +170,59 @@ def main():
         num_classes=2  # here we count background??? -MK
     )
 
-    transform = build_transform(min_image_size=800)
+    transform = build_transform()
 
+    count = 0
     for im_name in os.listdir(args.images_dir):
-        img = cv2.imread(os.path.join(args.images_dir, im_name))
-        if img is None:
+        image = Image.open(os.path.join(args.images_dir, im_name)).convert('RGB')
+        if image is None:
             continue
 
-        with timeit('%s\tinference time' % im_name):
-            # convert to an ImageList, padded so that it is divisible by
-            image_list = to_image_list(transform(img), 32)
+        mask = Image.new('L', image.size)
 
-            # compute predictions
-            with torch.no_grad():
-                logits = model(image_list.tensors)
-                # always single image is passed at a time
-                prediction = box_selector(logits, image_list.image_sizes)[0]
+        while True:
+            with timeit('%s\tinference time' % im_name):
+                (img, _, _), _ = transform(image, mask, None)
+                img = img.unsqueeze(0)  # batch dimension
 
-            # reshape prediction (a BoxList) into the original image size
-            height, width = img.shape[:-1]
-            prediction = prediction.resize((width, height))
+                height, width = img.shape[-2:]
 
-            scores = prediction.get_field("scores")
-            labels = prediction.get_field("labels")
-            thresholds = torch.tensor(thresholds_for_classes)[(labels - 1).long()]
-            keep = torch.nonzero(scores > thresholds).squeeze(1)
-            prediction = prediction[keep]
-            scores = prediction.get_field("scores")
-            _, idx = scores.sort(0, descending=True)
-            top_predictions = prediction[idx]
-            top_predictions = top_predictions[:1]
+                # compute predictions
+                with torch.no_grad():
+                    logits = model(img)
+                    # always single image is passed at a time
+                    prediction = box_selector(logits, [[height, width]])[0]
 
-            composite = overlay_boxes(img.copy(), top_predictions)
-            composite = overlay_class_names(composite, top_predictions)
+                scores = prediction.get_field("scores")
+                labels = prediction.get_field("labels")
+                thresholds = torch.tensor(thresholds_for_classes)[(labels - 1).long()]
+                keep = torch.nonzero(scores > thresholds).squeeze(1)
+                prediction = prediction[keep]
+                scores = prediction.get_field("scores")
+                _, idx = scores.sort(0, descending=True)
+                top_predictions = prediction[idx]
+                top_predictions = top_predictions[:1]
+                print(top_predictions.bbox)
 
-        cv2.imshow(im_name, composite)
+                composite = overlay_boxes(image.copy(), top_predictions)
+                # composite = overlay_class_names(composite, top_predictions)
 
-    print("Press any keys to exit ...")
-    cv2.waitKey()
-    cv2.destroyAllWindows()
+            plt.figure()
+            plt.subplot(121)
+            plt.imshow(composite)
+            plt.subplot(122)
+            plt.imshow(mask)
+            count += 1
+
+            if top_predictions.bbox.shape[0] == 0 or count > 2:
+                break
+            draw = ImageDraw.Draw(mask)
+            xyxy = top_predictions.bbox[0].tolist()
+            draw.rectangle(xyxy, fill=255)
+
+        break
+
+    plt.show()
 
 
 if __name__ == "__main__":
