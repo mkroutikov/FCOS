@@ -357,7 +357,7 @@ def main():
         base_lr=args.lr,
         batch_size=args.batch_size,
         single_block=args.single_block,
-        fine_tume=args.fine_tune,
+        fine_tune=args.fine_tune,
     )
 
 
