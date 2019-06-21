@@ -13,6 +13,7 @@ from fcos_post_processor import FCOSPostProcessor
 import contextlib
 import time
 import matplotlib.pyplot as plt
+import random
 
 
 @contextlib.contextmanager
@@ -157,7 +158,6 @@ def main():
 
     model = FCOSModel(num_classes=1, num_input_channels=4)
     state_dict = torch.load(args.checkpoint, map_location='cpu')
-    import pdb; pdb.set_trace()
     model.load_state_dict(state_dict['model'])
     model.eval()
 
@@ -172,8 +172,12 @@ def main():
 
     transform = build_transform()
 
+    images = list(os.listdir(args.images_dir))
+    random.shuffle(images)
+
     count = 0
-    for im_name in os.listdir(args.images_dir):
+    for im_name in images:
+        print(im_name)
         image = Image.open(os.path.join(args.images_dir, im_name)).convert('RGB')
         if image is None:
             continue
@@ -214,7 +218,7 @@ def main():
             plt.imshow(mask)
             count += 1
 
-            if top_predictions.bbox.shape[0] == 0 or count > 2:
+            if top_predictions.bbox.shape[0] == 0 or count > 3:
                 break
             draw = ImageDraw.Draw(mask)
             xyxy = top_predictions.bbox[0].tolist()

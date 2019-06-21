@@ -27,6 +27,7 @@ from fcos_model import FCOSModel
 from fcos_loss import FCOSLossComputation
 from fcos_post_processor import FCOSPostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
+import torch.distributed as dist
 
 from summary_writer import TensorboardSummary
 
