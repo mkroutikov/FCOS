@@ -17,7 +17,7 @@ import torch
 from maskrcnn_benchmark.data.collate_batch import BatchCollator
 from maskrcnn_benchmark.data import samplers
 from maskrcnn_benchmark.solver import WarmupMultiStepLR
-from maskrcnn_benchmark.utils.comm import synchronize, get_rank, get_world_size
+from maskrcnn_benchmark.utils.comm import synchronize, get_rank, get_world_size, is_main_process
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
@@ -165,8 +165,10 @@ def train(
     fine_tune=False,
 ):
     params = locals()
-    with open(output_dir + '/params.json', 'w') as f:
-        json.dump(params, f, indent=4)
+
+    if is_main_process():
+        with open(output_dir + '/params.json', 'w') as f:
+            json.dump(params, f, indent=4)
 
     model = FCOSModel(num_classes=1)
     device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
@@ -218,7 +220,8 @@ def train(
         single_block=single_block,
     )
 
-    summary = TensorboardSummary(logdir=output_dir)
+    if is_main_process():
+        summary = TensorboardSummary(logdir=output_dir)
 
     logging.info("Start training")
     meters = MetricLogger(delimiter="  ")
@@ -271,7 +274,7 @@ def train(
                 )
             )
         if (iteration + 1) % save_every == 0 or iteration + 1 == max_iter:
-            if get_rank() == 0:  # only master process saves model in distributed settings
+            if is_main_process() == 0:  # only master process saves model in distributed settings
                 fname = os.path.join(output_dir, "model_{:07d}.pth".format(iteration+1))
                 torch.save({
                     'model': model.state_dict(),
@@ -280,7 +283,7 @@ def train(
                     'iteration': iteration+1,
                 }, fname)
 
-        if (iteration+1) % image_every == 0:
+        if (iteration+1) % image_every == 0 and is_main_process():
             with torch.no_grad():
                 predictions = box_selector(logits, images.image_sizes)
 
@@ -321,8 +324,6 @@ def fix_34_channels(state_dict):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
-
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
     parser.add_argument('--output_dir', default='runs', help='where to write models and stats')
     parser.add_argument('--resume', help='filename of a model to resume training with')
@@ -334,8 +335,6 @@ def main():
 
     args = parser.parse_args()
 
-    output_dir = experiment_dir(base_dir=args.output_dir)
-
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1
 
@@ -346,9 +345,14 @@ def main():
         )
         synchronize()
 
-    logger = setup_logger("fcos", output_dir, get_rank())
-    logger.info("Using {} GPUs".format(num_gpus))
-    logger.info(args)
+    if is_main_process():
+        logging.basicConfig(level=logging.INFO)
+        output_dir = experiment_dir(base_dir=args.output_dir)
+        logger = setup_logger("fcos", output_dir, get_rank())
+        logger.info("Using {} GPUs".format(num_gpus))
+        logger.info(args)
+    else:
+        output_dir = None
 
     train(
         output_dir,
