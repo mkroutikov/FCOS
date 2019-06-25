@@ -28,6 +28,7 @@ from fcos_simple_loss import FCOSSimpleLoss
 from fcos_post_processor import FCOSPostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 import torch.distributed as dist
+from sane_demo import distill_module
 
 from summary_writer import TensorboardSummary
 
@@ -209,8 +210,9 @@ def train(
     if resume is not None:
         assert os.path.exists(resume)
         state_dict = torch.load(resume, map_location=device)
-        fix_34_channels(state_dict['model'])
-        model.load_state_dict(state_dict['model'])
+        model_state_dict = distill_module(state_dict['model'])
+        fix_34_channels(model_state_dict)
+        model.load_state_dict(model_state_dict)
         if not fine_tune:
             optimizer.load_state_dict(state_dict['optimizer'])
             scheduler.load_state_dict(state_dict['scheduler'])
