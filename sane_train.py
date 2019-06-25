@@ -24,7 +24,7 @@ from maskrcnn_benchmark.data import transforms as T
 import transforms_mask as TTT
 from scarlet_mask_dataset import Scarlet300MaskDataset
 from fcos_model import FCOSModel
-from fcos_loss import FCOSLossComputation
+from fcos_simple_loss import FCOSSimpleLoss
 from fcos_post_processor import FCOSPostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 import torch.distributed as dist
@@ -57,9 +57,9 @@ def reduce_loss_dict(loss_dict):
     return reduced_losses
 
 
-def make_optimizer(model, base_lr=0.001, weight_decay=0.0001, bias_lr_factor=2, weight_decay_bias=0, momentum=0.9):
+def make_optimizer(named_parameters, base_lr=0.001, weight_decay=0.0001, bias_lr_factor=2, weight_decay_bias=0, momentum=0.9):
     params = []
-    for key, value in model.named_parameters():
+    for key, value in named_parameters:
         if not value.requires_grad:
             continue
         lr = base_lr
@@ -174,9 +174,12 @@ def train(
     device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    criterion = FCOSLossComputation(loss_gamma, loss_alpha)
+    criterion = FCOSSimpleLoss(loss_gamma, loss_alpha)
 
-    optimizer = make_optimizer(model, base_lr=base_lr, weight_decay=weight_decay)
+    for x in model.backbone.parameters():
+        x.requires_grad = False
+
+    optimizer = make_optimizer(model.rpn.named_parameters(), base_lr=base_lr, weight_decay=weight_decay)
     scheduler = WarmupMultiStepLR(
         optimizer,
         warmup_milestones,
@@ -258,6 +261,8 @@ def train(
                 summary.add_scalar(name, value, global_step=iteration+1)
 
             summary.add_scalar('lr', lr, global_step=iteration+1)
+
+            cuda_mem = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0 if torch.cuda.is_available() else 0
             logging.info(
                 meters.delimiter.join(
                     [
@@ -270,14 +275,17 @@ def train(
                     iter=iteration+1,
                     meters=str(meters),
                     lr=lr,
-                    memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
+                    memory=cuda_mem,
                 )
             )
         if (iteration + 1) % save_every == 0 or iteration + 1 == max_iter:
             if is_main_process() == 0:  # only master process saves model in distributed settings
                 fname = os.path.join(output_dir, "model_{:07d}.pth".format(iteration+1))
+                model_state_dict = model.state_dict()
+                if 'module' in model_state_dict:  # unwrap models wrapped in DistributedDataParallel()
+                    model_state_dict = model_state_dict['module']
                 torch.save({
-                    'model': model.state_dict(),
+                    'model': model_state_dict,
                     'optimizer': optimizer.state_dict(),
                     'scheduler': scheduler.state_dict(),
                     'iteration': iteration+1,

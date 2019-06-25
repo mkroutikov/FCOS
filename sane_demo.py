@@ -9,7 +9,7 @@ import transforms_mask as TTT
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.image_list import to_image_list
 from fcos_model import FCOSModel
-from fcos_post_processor import FCOSPostProcessor
+from fcos_simple_post_processor import FCOSSimplePostProcessor
 import contextlib
 import time
 import matplotlib.pyplot as plt
@@ -60,18 +60,37 @@ def overlay_boxes(image, predictions):
         predictions (BoxList): the result of the computation by the model.
             It should contain the field `labels`.
     """
-    labels = predictions.get_field("labels")
     boxes = predictions.bbox
 
-    colors = compute_colors_for_labels(labels).tolist()
-
     draw = ImageDraw.Draw(image)
-    for box, color in zip(boxes, colors):
+    for box in boxes:
         box = box.to(torch.int64)
         xyxy = box[0], box[1], box[2], box[3]
         draw.rectangle(xyxy, outline=(0, 255, 0))
 
     return image
+
+
+def paint_heatmap(logits):
+
+    images = []
+    for c in logits:
+        c = c.squeeze(0).squeeze(0)
+        cmin = c.min()
+        cmax = c.max()
+        h, w = c.shape
+
+        image = Image.new('L', (w, h))
+        draw = ImageDraw.Draw(image)
+        for x in range(w):
+            for y in range(h):
+                color = 255 * (c[y,x] - cmin) / (cmax - cmin + 1.e-8)
+                color = int(color)
+                draw.point((x,y), fill=color)
+        images.append(image)
+
+    return images
+
 
 def overlay_class_names(image, predictions):
     """
@@ -101,6 +120,15 @@ def overlay_class_names(image, predictions):
 
     return image
 
+def distill_module(state_dict):
+    ''' Fixes state_dict from distributed training (when model was swapped in DataDistributedModule)'''
+
+    strip_module = lambda x: x[7:] if x.startswith('module.') else x
+
+    return {
+        strip_module(key): val
+        for key, val in state_dict.items()
+    }
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Webcam Demo")
@@ -158,15 +186,14 @@ def main():
 
     model = FCOSModel(num_classes=1, num_input_channels=4)
     state_dict = torch.load(args.checkpoint, map_location='cpu')
-    model.load_state_dict(state_dict['model'])
+    model.load_state_dict(distill_module(state_dict['model']))
     model.eval()
 
-    box_selector = FCOSPostProcessor(
+    box_selector = FCOSSimplePostProcessor(
         pre_nms_thresh=0.05,
         pre_nms_top_n=1000,
         nms_thresh=0.6,
         fpn_post_nms_top_n=100,
-        min_size=0,
         num_classes=2  # here we count background??? -MK
     )
 
@@ -198,30 +225,32 @@ def main():
                     prediction = box_selector(logits, [[height, width]])[0]
 
                 scores = prediction.get_field("scores")
-                labels = prediction.get_field("labels")
-                thresholds = torch.tensor(thresholds_for_classes)[(labels - 1).long()]
-                keep = torch.nonzero(scores > thresholds).squeeze(1)
-                prediction = prediction[keep]
-                scores = prediction.get_field("scores")
-                _, idx = scores.sort(0, descending=True)
-                top_predictions = prediction[idx]
-                top_predictions = top_predictions[:1]
-                print(top_predictions.bbox)
 
-                composite = overlay_boxes(image.copy(), top_predictions)
+                composite = overlay_boxes(image.copy(), prediction)
+                c_heatmaps = paint_heatmap(logits['centerness'])
+                b_heatmaps = paint_heatmap(logits['box_cls'])
+                b_heatmaps = paint_heatmap([l[:,0] for l in logits['box_regression']])
+                c_heatmaps = paint_heatmap([l[:,2] for l in logits['box_regression']])
+                #b_heatmaps = paint_heatmap([a*b for a, b in zip(logits['box_cls'], logits['centerness'])])
                 # composite = overlay_class_names(composite, top_predictions)
 
             plt.figure()
-            plt.subplot(121)
+            plt.subplot(3, 5, 1)
             plt.imshow(composite)
-            plt.subplot(122)
+            plt.subplot(3, 5, 2)
             plt.imshow(mask)
+            for i, im in enumerate(b_heatmaps):
+                plt.subplot(3, 5, 6+i)
+                plt.imshow(im)
+            for i, im in enumerate(c_heatmaps):
+                plt.subplot(3, 5, 11+i)
+                plt.imshow(im)
             count += 1
 
-            if top_predictions.bbox.shape[0] == 0 or count > 3:
+            if scores[0] < 0.1 or count > 2:
                 break
             draw = ImageDraw.Draw(mask)
-            xyxy = top_predictions.bbox[0].tolist()
+            xyxy = prediction.bbox[0].tolist()
             draw.rectangle(xyxy, fill=255)
 
         break

@@ -11,7 +11,7 @@ from maskrcnn_benchmark.structures.boxlist_ops import boxlist_nms
 from maskrcnn_benchmark.structures.boxlist_ops import remove_small_boxes
 
 
-class FCOSPostProcessor(torch.nn.Module):
+class FCOSPostProcessor:
     """
     Performs post-processing on the outputs of the RetinaNet boxes.
     This is only used in the testing.
@@ -43,16 +43,10 @@ class FCOSPostProcessor(torch.nn.Module):
         self.min_size = min_size
         self.num_classes = num_classes
 
-    def forward_for_single_feature_map(
+    def _process_single_level(
             self, locations, box_cls,
             box_regression, centerness,
             image_sizes):
-        """
-        Arguments:
-            anchors: list[BoxList]
-            box_cls: tensor of size N, A * C, H, W
-            box_regression: tensor of size N, A * 4, H, W
-        """
         N, C, H, W = box_cls.shape
 
         # put in the same format as locations
@@ -110,7 +104,7 @@ class FCOSPostProcessor(torch.nn.Module):
 
         return results
 
-    def forward(self, logits, image_sizes):
+    def __call__(self, logits, image_sizes):
         """
         Arguments:
             anchors: list[list[BoxList]]
@@ -123,9 +117,9 @@ class FCOSPostProcessor(torch.nn.Module):
         """
         locations, box_cls, box_regression, centerness = (logits[x] for x in ['locations', 'box_cls', 'box_regression', 'centerness'])
         sampled_boxes = []
-        for _, (l, o, b, c) in enumerate(zip(locations, box_cls, box_regression, centerness)):
+        for l, o, b, c in zip(locations, box_cls, box_regression, centerness):
             sampled_boxes.append(
-                self.forward_for_single_feature_map(
+                self._process_single_level(
                     l, o, b, c, image_sizes
                 )
             )
