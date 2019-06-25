@@ -25,7 +25,7 @@ import transforms_mask as TTT
 from scarlet_mask_dataset import Scarlet300MaskDataset
 from fcos_model import FCOSModel
 from fcos_simple_loss import FCOSSimpleLoss
-from fcos_post_processor import FCOSPostProcessor
+from fcos_simple_post_processor import FCOSSimplePostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 import torch.distributed as dist
 from sane_demo import distill_module
@@ -190,14 +190,7 @@ def train(
         warmup_method=warmup_method,
     )
 
-    box_selector = FCOSPostProcessor(
-        pre_nms_thresh=inference_th,
-        pre_nms_top_n=pre_nms_top_n,
-        nms_thresh=nms_th,
-        fpn_post_nms_top_n=fpn_post_nms_top_n,
-        min_size=0,
-        num_classes=2  # here we count background??? -MK
-    )
+    box_selector = FCOSSimplePostProcessor()
 
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(

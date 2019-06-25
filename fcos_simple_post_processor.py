@@ -16,29 +16,6 @@ class FCOSSimplePostProcessor:
     Performs post-processing on the outputs of the RetinaNet boxes.
     This is only used in the testing.
     """
-    def __init__(
-        self,
-        pre_nms_thresh,
-        pre_nms_top_n,
-        nms_thresh,
-        fpn_post_nms_top_n,
-        num_classes,
-    ):
-        """
-        Arguments:
-            pre_nms_thresh (float)
-            pre_nms_top_n (int)
-            nms_thresh (float)
-            fpn_post_nms_top_n (int)
-            num_classes (int)
-            box_coder (BoxCoder)
-        """
-        self.pre_nms_thresh = pre_nms_thresh
-        self.pre_nms_top_n = pre_nms_top_n
-        self.nms_thresh = nms_thresh
-        self.fpn_post_nms_top_n = fpn_post_nms_top_n
-        self.num_classes = num_classes
-
     def _process_one_level(
             self, locations, box_cls,
             box_regression, centerness,
