@@ -5,41 +5,27 @@ from collections import deque
 import torch
 
 
-class SmoothedValue(object):
+class EmaValue(object):
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.
     """
 
     def __init__(self, window_size=20):
-        self.deque = deque(maxlen=window_size)
-        self.series = []
-        self.total = 0.0
-        self.count = 0
+        self._lam = 1. / window_size
+        self.ema = None
+        self.last = None
 
     def update(self, value):
-        self.deque.append(value)
-        self.series.append(value)
-        self.count += 1
-        self.total += value
-
-    @property
-    def median(self):
-        d = torch.tensor(list(self.deque))
-        return d.median().item()
-
-    @property
-    def avg(self):
-        d = torch.tensor(list(self.deque))
-        return d.mean().item()
-
-    @property
-    def global_avg(self):
-        return self.total / self.count
+        if self.ema is None:
+            self.ema = value  # "fast" start
+        else:
+            self.ema += (value - self.ema) * self._lam
+        self.last = value
 
 
 class MetricLogger(object):
-    def __init__(self, delimiter="\t"):
-        self.meters = defaultdict(SmoothedValue)
+    def __init__(self, delimiter=" "):
+        self.meters = defaultdict(EmaValue)
         self.delimiter = delimiter
 
     def update(self, **kwargs):
@@ -61,6 +47,6 @@ class MetricLogger(object):
         loss_str = []
         for name, meter in self.meters.items():
             loss_str.append(
-                "{}: {:.4f} ({:.4f})".format(name, meter.median, meter.global_avg)
+                "{}: {:.4f}({:.4f})".format(name, meter.ema, meter.last)
             )
         return self.delimiter.join(loss_str)
