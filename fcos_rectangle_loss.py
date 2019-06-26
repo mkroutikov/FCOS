@@ -24,120 +24,47 @@ class FCOSRectangleLoss:
     This class computes the FCOS losses.
     """
 
-    def __init__(self, gamma, alpha):
+    def __init__(self, gamma, alpha, stripe_width=10):
         self.cls_loss_func = SigmoidFocalLoss(gamma, alpha)
         # we make use of IOU Loss for bounding boxes regression,
         # but we found that L1 in log scale can yield a similar performance
         self.box_reg_loss_func = IOULoss()
         self.centerness_loss_func = nn.BCEWithLogitsLoss()
-
+        self.stripe_width = stripe_width
 
     def __call__(self, logits, targets):
-        l, t, r, b = logits['l'], logits['t'], logits['r'], logits['b']
-        assert len(l) == 5  # 5 layers in image pyramid
-        assert len(t) == 5
-        assert len(r) == 5
-        assert len(b) == 5
+        locations = logits['locations']
+        focus = logits['focus']
+        regression = logits['regression']
 
-        batch_size = l[0].shape[0]
-        locations, box_cls, box_regression, centerness = logits['locations'], logits['box_cls'], logits['box_regression'], logits['centerness']
+        batch_size = len(targets)
 
-        N = box_cls[0].size(0)
-        num_classes = box_cls[0].size(1)
-        labels, reg_targets = prepare_targets(locations, targets)
+        focus_losses = []
+        regression_losses = []
+        for i in range(batch_size):
+            target = targets[i]
+            for j in range(5):  # Pyramid
+                loc = locations[j]
+                predicted_focus = focus[j][i].view(4, -1).permute(1, 0)
+                predicted_regression = regression[j][i].view(4, -1).permute(1, 0)
+                if target.bbox.shape[0] > 0:
+                    assert target.bbox.shape[0] == 1
+                    result = compute_rectangle_stripe_targets(loc, target.bbox[0], stripe_width=self.stripe_width)
+                    focus_loss = torch.abs(result['focus'] - predicted_focus).mean().unsqueeze(0)
+                    regression_loss = torch.abs(result['regression'] - predicted_regression).mean().unsqueeze(0)
+                else:
+                    focus_loss = torch.abs(predicted_focus).mean().unsqueeze(0)
+                    regression_loss = torch.abs(predicted_regression).mean().unsqueeze(0)
 
-        box_cls_flatten = []
-        box_regression_flatten = []
-        centerness_flatten = []
-        labels_flatten = []
-        reg_targets_flatten = []
-        for l in range(len(labels)):
-            box_cls_flatten.append(box_cls[l].permute(0, 2, 3, 1).reshape(-1, num_classes))
-            box_regression_flatten.append(box_regression[l].permute(0, 2, 3, 1).reshape(-1, 4))
-            labels_flatten.append(labels[l].reshape(-1))
-            reg_targets_flatten.append(reg_targets[l].reshape(-1, 4))
-            centerness_flatten.append(centerness[l].reshape(-1))
-
-        box_cls_flatten = torch.cat(box_cls_flatten, dim=0)
-        box_regression_flatten = torch.cat(box_regression_flatten, dim=0)
-        centerness_flatten = torch.cat(centerness_flatten, dim=0)
-        labels_flatten = torch.cat(labels_flatten, dim=0)
-        reg_targets_flatten = torch.cat(reg_targets_flatten, dim=0)
-
-        pos_inds = torch.nonzero(labels_flatten > 0).squeeze(1)
-        cls_loss = self.cls_loss_func(
-            box_cls_flatten,
-            labels_flatten.int()
-        ) / (pos_inds.numel() + N)  # add N to avoid dividing by a zero
-
-        box_regression_flatten = box_regression_flatten[pos_inds]
-        reg_targets_flatten = reg_targets_flatten[pos_inds]
-        centerness_flatten = centerness_flatten[pos_inds]
-
-        if pos_inds.numel() > 0:
-            centerness_targets = compute_centerness_targets(reg_targets_flatten)
-            reg_loss = self.box_reg_loss_func(
-                box_regression_flatten,
-                reg_targets_flatten,
-                centerness_targets
-            )
-            centerness_loss = self.centerness_loss_func(
-                centerness_flatten,
-                centerness_targets
-            )
-        else:
-            reg_loss = box_regression_flatten.sum()
-            centerness_loss = centerness_flatten.sum()
+                focus_losses.append(focus_loss)
+                regression_losses.append(regression_loss)
 
         return {
-            'loss_cls': cls_loss,
-            'loss_reg': reg_loss,
-            'loss_centerness': centerness_loss,
+            'loss_focus': torch.cat(focus_losses).mean(),
+            'regression_loss': torch.cat(regression_losses).mean(),
         }
 
-
-def prepare_targets(points, targets):
-    num_points_per_level = [len(points_per_level) for points_per_level in points]
-    points_all_level = torch.cat(points, dim=0)
-    labels, reg_targets = compute_targets_for_locations(
-        points_all_level, targets
-    )
-
-    for i in range(len(labels)):
-        labels[i] = torch.split(labels[i], num_points_per_level, dim=0)
-        reg_targets[i] = torch.split(reg_targets[i], num_points_per_level, dim=0)
-
-    labels_level_first = []
-    reg_targets_level_first = []
-    for level in range(len(points)):
-        labels_level_first.append(
-            torch.cat([labels_per_im[level] for labels_per_im in labels], dim=0)
-        )
-        reg_targets_level_first.append(
-            torch.cat([reg_targets_per_im[level] for reg_targets_per_im in reg_targets], dim=0)
-        )
-
-    return labels_level_first, reg_targets_level_first
-
-def compute_targets_for_locations(locations, targets, stripe_width=10):
-    focus = []
-    regression = []
-    xs, ys = locations[:, 0], locations[:, 1]
-
-    import pdb; pdb.set_trace()
-    for target in targets:
-        assert target.mode == "xyxy"
-
-        x = compute_rectangle_stripe_targets(locations, targets.bbox, stripe_width=stripe_width)
-
-        focus.append(x['focus'])
-        regression.append(x['regression'])
-
-    return focus, regression
-
-
 def compute_rectangle_stripe_targets(locations, box, stripe_width=10):
-    import pdb; pdb.set_trace()
     xs, ys = locations[:, 0], locations[:, 1]
 
     l = xs - box[0]
@@ -172,12 +99,3 @@ def compute_rectangle_stripe_targets(locations, box, stripe_width=10):
         'focus': foc,
         'regression': reg,
     }
-
-
-
-def compute_centerness_targets(reg_targets):
-    left_right = reg_targets[:, [0, 2]]
-    top_bottom = reg_targets[:, [1, 3]]
-    centerness = (left_right.min(dim=-1)[0] / left_right.max(dim=-1)[0]) * \
-                    (top_bottom.min(dim=-1)[0] / top_bottom.max(dim=-1)[0])
-    return torch.sqrt(centerness)

@@ -164,8 +164,9 @@ class FCOSHead(torch.nn.Module):
             bbox_tower.append(nn.GroupNorm(32, in_channels))
             bbox_tower.append(nn.ReLU())
 
-        self.add_module('cls_tower', nn.Sequential(*cls_tower))
-        self.add_module('bbox_tower', nn.Sequential(*bbox_tower))
+        self.cls_tower = nn.Sequential(*cls_tower)
+        self.bbox_tower = nn.Sequential(*bbox_tower)
+
         self.cls_logits = nn.Conv2d(
             in_channels, num_classes, kernel_size=3, stride=1,
             padding=1
@@ -214,7 +215,7 @@ class FCOSHead(torch.nn.Module):
 
 class FCOSTowerBlock(nn.Sequential):
     def __init__(self, channels, num_groups=32):
-        nn.Sequential.__init__(self, [
+        nn.Sequential.__init__(self,
             nn.Conv2d(
                 channels,
                 channels,
@@ -224,38 +225,39 @@ class FCOSTowerBlock(nn.Sequential):
             ),
             nn.GroupNorm(num_groups, channels),
             nn.ReLU(),
-        ])
+        )
 
-        for modules in self.modules():
-            if isinstance(l, nn.Conv2d):
-                torch.nn.init.normal_(l.weight, std=0.01)
-                torch.nn.init.constant_(l.bias, 0)
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                torch.nn.init.normal_(m.weight, std=0.01)
+                torch.nn.init.constant_(m.bias, 0)
 
 
 class FCOSRectangleHead(torch.nn.Module):
-    def __init__(self, num_convs, prior_prob, in_channels):
+    def __init__(self, num_convs=4, prior_prob=0.01, in_channels=256):
         """
         Arguments:
             in_channels (int): number of channels of the input feature
         """
-        super(FCOSHead, self).__init__()
-        # TODO: Implement the sigmoid version first.
+        super(FCOSRectangleHead, self).__init__()
 
-        self.focus_tower = nn.Sequential([
+        self.in_channels = in_channels
+
+        self.focus_tower = nn.Sequential(*([
             FCOSTowerBlock(in_channels)
-            for _ in num_convs
+            for _ in range(num_convs)
         ] + [
             nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1),
             Scale(init_value=1.0)
-        ])
+        ]))
 
-        self.regression_tower = nn.Sequential([
+        self.regression_tower = nn.Sequential(*([
             FCOSTowerBlock(in_channels)
-            for _ in num_convs
+            for _ in range(num_convs)
         ] + [
             nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1),
             Scale(init_value=1.0)
-        ])
+        ]))
 
         # initialization
         for modules in [self.focus_tower, self.regression_tower]:
@@ -268,4 +270,7 @@ class FCOSRectangleHead(torch.nn.Module):
         focus_feats = [self.focus_tower(x) for x in features]
         regression_feats = [self.regression_tower(x) for x in features]
 
-        return focus_feats, regression_feats
+        return {
+            'focus': focus_feats,
+            'regression': regression_feats
+        }
