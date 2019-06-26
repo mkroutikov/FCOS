@@ -332,6 +332,7 @@ def main():
     parser.add_argument('--resume', help='filename of a model to resume training with')
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--save_every", type=int, default=500)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--single-block", action='store_true', default=False)
     parser.add_argument("--fine-tune", "-ft", action='store_true', default=False, help="do not restore optimizer and scheduler state")
@@ -366,6 +367,7 @@ def main():
         batch_size=args.batch_size,
         single_block=args.single_block,
         fine_tune=args.fine_tune,
+        save_every=save_every,
     )
 
 
