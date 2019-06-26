@@ -367,7 +367,7 @@ def main():
         batch_size=args.batch_size,
         single_block=args.single_block,
         fine_tune=args.fine_tune,
-        save_every=save_every,
+        save_every=args.save_every,
     )
 
 
