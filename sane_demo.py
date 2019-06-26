@@ -33,6 +33,7 @@ def build_transform(convert_to_bgr255=True, pixel_mean=(102.9801, 115.9465, 122.
     transform = TTT.Compose(
         [
             TTT.PadToDivisibility(32),
+            TTT.Crop(32, 32),
             TTT.ToTensor(),
             TTT.Normalize(mean=pixel_mean, std=pixel_std, to_bgr255=convert_to_bgr255),
             TTT.MakeMaskChannel(),
@@ -196,13 +197,16 @@ def main():
 
     transform = build_transform()
 
-    images = list(os.listdir(args.images_dir))
-    random.shuffle(images)
+    if os.path.isdir(args.images_dir):
+        images = [os.path.join(args.images_dir, x) for x in os.listdir(args.images_dir)]
+        random.shuffle(images)
+    else:
+        images = [args.images_dir]
 
     count = 0
     for im_name in images:
         print(im_name)
-        image = Image.open(os.path.join(args.images_dir, im_name)).convert('RGB')
+        image = Image.open(im_name).convert('RGB')
         if image is None:
             continue
 
@@ -232,16 +236,16 @@ def main():
                 # composite = overlay_class_names(composite, top_predictions)
 
             plt.figure()
-            plt.subplot(3, 5, 1)
+            plt.subplot(1, 2, 1)
             plt.imshow(composite)
-            plt.subplot(3, 5, 2)
+            plt.subplot(1, 2, 2)
             plt.imshow(mask)
-            for i, im in enumerate(b_heatmaps):
-                plt.subplot(3, 5, 6+i)
-                plt.imshow(im)
-            for i, im in enumerate(c_heatmaps):
-                plt.subplot(3, 5, 11+i)
-                plt.imshow(im)
+            # for i, im in enumerate(b_heatmaps):
+            #     plt.subplot(3, 5, 6+i)
+            #     plt.imshow(im)
+            # for i, im in enumerate(c_heatmaps):
+            #     plt.subplot(3, 5, 11+i)
+            #     plt.imshow(im)
             count += 1
 
             print(scores[0])

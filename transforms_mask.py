@@ -61,6 +61,32 @@ class RandomCrop:
         return (image, mask, target), {}
 
 
+class Crop:
+    '''crops an image by |delta_x|, |delta_y|'''
+
+    def __init__(self, delta_x=0, delta_y=0):
+        self.delta_x = delta_x
+        self.delta_y = delta_y
+
+    def __call__(self, *av, **kav):
+        image, mask, target = av
+        dx = self.delta_x
+        dy = self.delta_y
+
+        if dx == 0 and dy == 0:
+            return image, target
+
+        offx = dx // 2
+        offy = dy // 2
+
+        w, h = image.size
+        image = image.crop((offx, offy, offx+w-dx, offy+h-dy))
+        mask  = mask.crop((offx, offy, offx+w-dx, offy+h-dy))
+        if target is not None:
+            target = target.crop((offx, offy, offx+w-dx, offy+h-dy))
+
+        return (image, mask, target), {}
+
 class MakeMaskChannel:
     def __call__(self, *av, **kav):
         image, mask, target = av

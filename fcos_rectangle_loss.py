@@ -24,7 +24,7 @@ class FCOSRectangleLoss:
     This class computes the FCOS losses.
     """
 
-    def __init__(self, gamma, alpha, stripe_width=10):
+    def __init__(self, gamma, alpha, stripe_width=32):
         self.cls_loss_func = SigmoidFocalLoss(gamma, alpha)
         # we make use of IOU Loss for bounding boxes regression,
         # but we found that L1 in log scale can yield a similar performance

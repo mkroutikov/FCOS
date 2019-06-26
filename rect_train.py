@@ -295,7 +295,13 @@ def train(
             with torch.no_grad():
                 predictions = box_selector(logits, images.image_sizes)
 
-            summary.visualize_box(images.tensors[0], targets[0], predictions[0].to(torch.device('cpu')), iteration+1)
+            summary.visualize_box(
+                image=images.tensors[0],
+                target=targets[0],
+                output=predictions[0].to(torch.device('cpu')),
+                logits=logits['focus'][0][0],  # showing only Pyramid 0
+                global_step=iteration+1
+            )
 
     return model
 

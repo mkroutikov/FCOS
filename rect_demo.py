@@ -8,8 +8,9 @@ from torchvision import transforms as T
 import transforms_mask as TTT
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.image_list import to_image_list
-from fcos_model import FCOSModel, FCOSHead
+from fcos_model import FCOSModel, FCOSHead, FCOSRectangleHead
 from fcos_simple_post_processor import FCOSSimplePostProcessor
+from fcos_rectangle_post_processor import FCOSRectanglePostProcessor
 import contextlib
 import time
 import matplotlib.pyplot as plt
@@ -33,6 +34,7 @@ def build_transform(convert_to_bgr255=True, pixel_mean=(102.9801, 115.9465, 122.
     transform = TTT.Compose(
         [
             TTT.PadToDivisibility(32),
+            TTT.Crop(32, 32),
             TTT.ToTensor(),
             TTT.Normalize(mean=pixel_mean, std=pixel_std, to_bgr255=convert_to_bgr255),
             TTT.MakeMaskChannel(),
@@ -76,6 +78,27 @@ def paint_heatmap(logits):
     images = []
     for c in logits:
         c = c.squeeze(0).squeeze(0)
+        cmin = c.min()
+        cmax = c.max()
+        h, w = c.shape
+
+        image = Image.new('L', (w, h))
+        draw = ImageDraw.Draw(image)
+        for x in range(w):
+            for y in range(h):
+                color = 255 * (c[y,x] - cmin) / (cmax - cmin + 1.e-8)
+                color = int(color)
+                draw.point((x,y), fill=color)
+        images.append(image)
+
+    return images
+
+
+def paint_heatmap4(logits, channel):
+
+    images = []
+    for c in logits:
+        c = c.squeeze(0)[channel]
         cmin = c.min()
         cmax = c.max()
         h, w = c.shape
@@ -186,23 +209,26 @@ def main():
 
     model = FCOSModel(
         backbone_input_channels=4,
-        head=FCOSHead(in_channels=256, num_classes=1),
+        head=FCOSRectangleHead(in_channels=256),
     )
     state_dict = torch.load(args.checkpoint, map_location='cpu')
-    model.load_state_dict(distill_module(state_dict['model']))
+    model.load_state_dict(distill_module(state_dict['model']), strict=False)
     model.eval()
 
-    box_selector = FCOSSimplePostProcessor()
+    box_selector = FCOSRectanglePostProcessor()
 
     transform = build_transform()
 
-    images = list(os.listdir(args.images_dir))
-    random.shuffle(images)
+    if os.path.isdir(args.images_dir):
+        images = [os.path.join(args.images_dir, x) for x in os.listdir(args.images_dir)]
+        random.shuffle(images)
+    else:
+        images = [args.images_dir]
 
     count = 0
     for im_name in images:
         print(im_name)
-        image = Image.open(os.path.join(args.images_dir, im_name)).convert('RGB')
+        image = Image.open(im_name).convert('RGB')
         if image is None:
             continue
 
@@ -224,12 +250,8 @@ def main():
                 scores = prediction.get_field("scores")
 
                 composite = overlay_boxes(image.copy(), prediction)
-                c_heatmaps = paint_heatmap(logits['centerness'])
-                b_heatmaps = paint_heatmap(logits['box_cls'])
-                b_heatmaps = paint_heatmap([l[:,0] for l in logits['box_regression']])
-                c_heatmaps = paint_heatmap([l[:,2] for l in logits['box_regression']])
-                #b_heatmaps = paint_heatmap([a*b for a, b in zip(logits['box_cls'], logits['centerness'])])
-                # composite = overlay_class_names(composite, top_predictions)
+                c_heatmaps = paint_heatmap4(logits['focus'], 0)
+                b_heatmaps = paint_heatmap4(logits['regression'], 0)
 
             plt.figure()
             plt.subplot(3, 5, 1)
