@@ -23,8 +23,9 @@ from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.data import transforms as T
 import transforms_mask as TTT
 from scarlet_mask_dataset import Scarlet300MaskDataset
-from fcos_model import FCOSModel
+from fcos_model import FCOSModel, FCOSHead
 from fcos_simple_loss import FCOSSimpleLoss
+from fcos_rectangle_loss import FCOSRectangleLoss
 from fcos_simple_post_processor import FCOSSimplePostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 import torch.distributed as dist
@@ -171,7 +172,10 @@ def train(
         with open(output_dir + '/params.json', 'w') as f:
             json.dump(params, f, indent=4)
 
-    model = FCOSModel(num_classes=1)
+    model = FCOSModel(
+        backbone_input_channels=4,
+        head=FCOSHead(in_channels=256, num_classes=1),
+    )
     device = torch.device('cuda:%d' % local_rank if torch.cuda.is_available() else 'cpu')
     model.to(device)
 

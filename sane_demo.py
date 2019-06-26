@@ -8,7 +8,7 @@ from torchvision import transforms as T
 import transforms_mask as TTT
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.image_list import to_image_list
-from fcos_model import FCOSModel
+from fcos_model import FCOSModel, FCOSHead
 from fcos_simple_post_processor import FCOSSimplePostProcessor
 import contextlib
 import time
@@ -184,7 +184,10 @@ def main():
         0.1730124056339264, 0.1857597529888153
     ]
 
-    model = FCOSModel(num_classes=1, num_input_channels=4)
+    model = FCOSModel(
+        backbone_input_channels=4,
+        head=FCOSHead(in_channels=256, num_classes=1),
+    )
     state_dict = torch.load(args.checkpoint, map_location='cpu')
     model.load_state_dict(distill_module(state_dict['model']))
     model.eval()

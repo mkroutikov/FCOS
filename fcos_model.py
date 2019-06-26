@@ -39,11 +39,11 @@ def build_resnet_fpn_p3p7_backbone(stem_out_channels=64, in_channels_stage2=256,
 
 
 class FCOSModel(nn.Module):
-    def __init__(self, num_classes=80, num_input_channels=4):
+    def __init__(self, head, backbone_input_channels=4):
         super(FCOSModel, self).__init__()
 
-        self.backbone = build_resnet_fpn_p3p7_backbone(num_input_channels=num_input_channels)
-        self.rpn = FCOSModuleLight(in_channels=self.backbone.out_channels, num_classes=num_classes)
+        self.backbone = build_resnet_fpn_p3p7_backbone(num_input_channels=backbone_input_channels, out_channels=head.in_channels)
+        self.rpn = FCOSModuleLight(head)
 
     def forward(self, image_tensors):
         """
@@ -64,21 +64,15 @@ class FCOSModuleLight(torch.nn.Module):
     FCOS outputs. Only Test on FPN now.
     """
 
-    def __init__(self, in_channels,
-        num_classes=80,
-        num_convs=4,
-        prior_prob=0.01,
+    def __init__(self,
+        head,
         fpn_strides=[8, 16, 32, 64, 128],
     ):
         super(FCOSModuleLight, self).__init__()
 
-        self.head = FCOSHead(
-            num_classes=num_classes,
-            num_convs=num_convs,
-            prior_prob=prior_prob,
-            in_channels=in_channels
-        )
+        self.head = head
 
+        self.in_channels = head.in_channels
         self.fpn_strides = fpn_strides
 
     def forward(self, features):
@@ -96,15 +90,11 @@ class FCOSModuleLight(torch.nn.Module):
             losses (dict[Tensor]): the losses for the model during training. During
                 testing, it is an empty dict.
         """
-        box_cls, box_regression, centerness = self.head(features)
-        locations = self.compute_locations(features)
-
-        return {
-            'locations'     : locations,
-            'box_cls'       : box_cls,
-            'box_regression': box_regression,
-            'centerness'    : centerness,
-        }
+        result = self.compute_locations(features)
+        result.update(
+            self.head(features)
+        )
+        return result
 
     def compute_locations(self, features):
         locations = []
@@ -116,7 +106,9 @@ class FCOSModuleLight(torch.nn.Module):
             )
             locations.append(locations_per_level)
 
-        return locations
+        return {
+            'locations': locations
+        }
 
     def compute_locations_per_level(self, h, w, stride, device):
         shifts_x = torch.arange(
@@ -135,13 +127,16 @@ class FCOSModuleLight(torch.nn.Module):
 
 
 class FCOSHead(torch.nn.Module):
-    def __init__(self, num_classes, num_convs, prior_prob, in_channels):
+
+    def __init__(self, num_classes=80, num_convs=4, prior_prob=0.01, in_channels=256):
         """
         Arguments:
             in_channels (int): number of channels of the input feature
         """
         super(FCOSHead, self).__init__()
         # TODO: Implement the sigmoid version first.
+
+        self.in_channels = in_channels
 
         cls_tower = []
         bbox_tower = []
@@ -210,4 +205,67 @@ class FCOSHead(torch.nn.Module):
             bbox_reg.append(torch.exp(self.scales[l](
                 self.bbox_pred(self.bbox_tower(feature))
             )))
-        return logits, bbox_reg, centerness
+        return {
+            'box_cls'       : logits,
+            'box_regression': bbox_reg,
+            'centerness'    : centerness,
+        }
+
+
+class FCOSTowerBlock(nn.Sequential):
+    def __init__(self, channels, num_groups=32):
+        nn.Sequential.__init__(self, [
+            nn.Conv2d(
+                channels,
+                channels,
+                kernel_size=3,
+                stride=1,
+                padding=1
+            ),
+            nn.GroupNorm(num_groups, channels),
+            nn.ReLU(),
+        ])
+
+        for modules in self.modules():
+            if isinstance(l, nn.Conv2d):
+                torch.nn.init.normal_(l.weight, std=0.01)
+                torch.nn.init.constant_(l.bias, 0)
+
+
+class FCOSRectangleHead(torch.nn.Module):
+    def __init__(self, num_convs, prior_prob, in_channels):
+        """
+        Arguments:
+            in_channels (int): number of channels of the input feature
+        """
+        super(FCOSHead, self).__init__()
+        # TODO: Implement the sigmoid version first.
+
+        self.focus_tower = nn.Sequential([
+            FCOSTowerBlock(in_channels)
+            for _ in num_convs
+        ] + [
+            nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1),
+            Scale(init_value=1.0)
+        ])
+
+        self.regression_tower = nn.Sequential([
+            FCOSTowerBlock(in_channels)
+            for _ in num_convs
+        ] + [
+            nn.Conv2d(in_channels, 4, kernel_size=3, stride=1, padding=1),
+            Scale(init_value=1.0)
+        ])
+
+        # initialization
+        for modules in [self.focus_tower, self.regression_tower]:
+            for l in modules.modules():
+                if isinstance(l, nn.Conv2d):
+                    torch.nn.init.normal_(l.weight, std=0.01)
+                    torch.nn.init.constant_(l.bias, 0)
+
+    def forward(self, features):
+        focus_feats = [self.focus_tower(x) for x in features]
+        regression_feats = [self.regression_tower(x) for x in features]
+
+        return focus_feats, regression_feats
