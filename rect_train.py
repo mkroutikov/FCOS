@@ -26,7 +26,7 @@ from scarlet_mask_dataset import Scarlet300MaskDataset
 from fcos_model import FCOSModel, FCOSHead, FCOSRectangleHead
 from fcos_simple_loss import FCOSSimpleLoss
 from fcos_rectangle_loss import FCOSRectangleLoss
-from fcos_simple_post_processor import FCOSSimplePostProcessor
+from fcos_rectangle_post_processor import FCOSRectanglePostProcessor
 from maskrcnn_benchmark.structures.image_list import to_image_list
 import torch.distributed as dist
 from sane_demo import distill_module
@@ -195,7 +195,7 @@ def train(
         warmup_method=warmup_method,
     )
 
-    box_selector = FCOSSimplePostProcessor()
+    box_selector = FCOSRectanglePostProcessor()
 
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(

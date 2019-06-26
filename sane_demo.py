@@ -244,7 +244,8 @@ def main():
                 plt.imshow(im)
             count += 1
 
-            if scores[0] < 0.1 or count > 2:
+            print(scores[0])
+            if scores[0] < 0.1 or count > 4:
                 break
             draw = ImageDraw.Draw(mask)
             xyxy = prediction.bbox[0].tolist()

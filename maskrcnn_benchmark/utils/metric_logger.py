@@ -22,9 +22,14 @@ class EmaValue(object):
             self.ema += (value - self.ema) * self._lam
         self.last = value
 
+    def __repr__(self):
+        if self.ema is None:
+            return 'None'
+        return '%.4f(%.4f)' % (self.ema, self.last)
+
 
 class MetricLogger(object):
-    def __init__(self, delimiter=" "):
+    def __init__(self, delimiter=", "):
         self.meters = defaultdict(EmaValue)
         self.delimiter = delimiter
 
@@ -44,9 +49,7 @@ class MetricLogger(object):
                     type(self).__name__, attr))
 
     def __str__(self):
-        loss_str = []
-        for name, meter in self.meters.items():
-            loss_str.append(
-                "{}: {:.4f}({:.4f})".format(name, meter.ema, meter.last)
-            )
-        return self.delimiter.join(loss_str)
+        return self.delimiter.join(
+            '%s: %r' % (name, val)
+            for name, val in self.meters.items()
+        )
