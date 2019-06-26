@@ -189,13 +189,7 @@ def main():
     model.load_state_dict(distill_module(state_dict['model']))
     model.eval()
 
-    box_selector = FCOSSimplePostProcessor(
-        pre_nms_thresh=0.05,
-        pre_nms_top_n=1000,
-        nms_thresh=0.6,
-        fpn_post_nms_top_n=100,
-        num_classes=2  # here we count background??? -MK
-    )
+    box_selector = FCOSSimplePostProcessor()
 
     transform = build_transform()
 

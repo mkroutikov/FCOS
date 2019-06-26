@@ -42,11 +42,10 @@ class FCOSSimplePostProcessor:
         #box_cls = box_cls * centerness[:, :, None]
 
         best_boxes = torch.argmax(box_cls.view(N, -1), dim=1)
-        best_box_cls = box_cls.view(N, -1)[:, best_boxes]
 
         results = []
         for i in range(N):
-            c = best_box_cls[i]
+            c = box_cls[i, best_boxes[i]]
             r = box_regression[i, best_boxes[i], :]
             l = locations[best_boxes[i],:]
 
