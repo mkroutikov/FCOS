@@ -274,7 +274,7 @@ def train(
                 )
             )
         if (iteration + 1) % save_every == 0 or iteration + 1 == max_iter:
-            if is_main_process() == 0:  # only master process saves model in distributed settings
+            if is_main_process():  # only master process saves model in distributed settings
                 fname = os.path.join(output_dir, "model_{:07d}.pth".format(iteration+1))
                 model_state_dict = model.state_dict()
                 if 'module' in model_state_dict:  # unwrap models wrapped in DistributedDataParallel()
