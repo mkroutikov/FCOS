@@ -105,7 +105,7 @@ class IlabsEvaluator:
         self._stats['total_predicted'] += len(predicted)
 
         self._tp_scores.extend(p['score'] for p in predicted if p['id'] in assigned)
-        self._fp_scores.extend(p['score'] for p in predicted if p['id'] is not in assigned)
+        self._fp_scores.extend(p['score'] for p in predicted if p['id'] not in assigned)
 
     def summarize(self):
         for k in sorted(self._stats.keys()):
