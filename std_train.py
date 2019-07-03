@@ -9,7 +9,8 @@ import torchvision
 import torchvision.models.detection
 import torchvision.models.detection.mask_rcnn
 
-from engine import train_one_epoch, evaluate
+from engine import train_one_epoch
+from evaluate import evaluate
 
 from fcos_model import FCOSModel, FCOSHead
 from scarlet_dataset import Scarlet300Dataset
