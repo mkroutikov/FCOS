@@ -96,7 +96,7 @@ class IlabsEvaluator:
         tp = len(assigned)
         fn = len(gt_boxes) - len(assigned)  # these boxes were not found by predictor (False Negatives)
         fp = len(predicted_high_score) - len(assigned)  # these boxes were predicted, but not matched (False positives)
-        miou = sum(p['iou'] for p in assigned.values()) / (len(assigned) + 1.e-7)  # mean iou - how precise our tp boxes are
+        miou = sum(p['iou'].item() for p in assigned.values()) / (len(assigned) + 1.e-7)  # mean iou - how precise our tp boxes are
 
         self._stats['tp'] += tp
         self._stats['fn'] += fn
@@ -117,6 +117,7 @@ class IlabsEvaluator:
         mean_fp_score = sum(self._fp_scores) / (len(self._fp_scores) + 1e-7)
         print('mean_tp_score', mean_tp_score)
         print('mean_fp_score', mean_fp_score)
+        print('miou', self._stats['miou'] / (self._stats['count'] + 1.e-7))
 
 
 def area(l, t, r, b):
