@@ -14,7 +14,7 @@ def evaluate(model, data_loader, device, print_every=1):
 
     for image, targets in metric_logger.log_every(data_loader, print_every, header):
         image = list(img.to(device) for img in image)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        targets = [{k: v.to('cpu') for k, v in t.items()} for t in targets]
 
         if torch.cuda.is_available():
             torch.cuda.synchronize()
