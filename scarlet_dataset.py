@@ -9,27 +9,49 @@ from maskrcnn_benchmark.structures.bounding_box import BoxList
 from ilabs.curate import ic
 import torch
 import lxml.etree as et
+import transforms as T
 
+
+INPUT_PIXEL_MEAN = (102.9801, 115.9465, 122.7717)
+INPUT_PIXEL_STD  = (1., 1., 1.)
+
+RESNET50_MEAN = [0.485, 0.456, 0.406]
+RESNET50_STD  = [0.229, 0.224, 0.225]
 
 class Scarlet300Dataset:
-    def __init__(self, split, transforms=None, single_block=False):
+    def __init__(self, split):
         assert split in ('test', 'train')
         self.split = split
-        self.transforms = transforms
 
         dataset = ic.get_dataset('ilabs.vision', 'scarlet300')
         self._images = sorted(x for x in dataset[split] if x.endswith('.png'))
-        self._boxes = [build_boxlist(x[:-4] + '.xml', single_block=single_block) for x in self._images]
+        self._boxes = [build_boxlist(x[:-4] + '.xml') for x in self._images]
+
+        if split == 'test':
+            self._transform = T.Compose([
+                T.PadToDivisibility(32),
+                T.RandomCrop(32, 32),
+                T.ToTensor(),
+                T.Normalize(mean=RESNET50_MEAN, std=RESNET50_STD, to_bgr255=False),
+                T.validate_target,
+                #T.MakeMaskChannel(),
+            ])
+        else:
+            self._transform = T.Compose([
+                T.PadToDivisibility(32),
+                T.CenterCrop(32, 32),
+                T.ToTensor(),
+                T.Normalize(mean=RESNET50_MEAN, std=RESNET50_STD, to_bgr255=False),
+                #T.MakeMaskChannel(),
+            ])
 
     def __getitem__(self, item):
         img = Image.open(self._images[item]).convert("RGB")
         target = self._boxes[item]
 
-        target = target.clip_to_image(remove_empty=True)
-        if self.transforms is not None:
-            img, target = self.transforms(img, target)
+        img, target = self._transform(img, target)
 
-        return img, target, item
+        return img, target
 
     def __len__(self):
         return len(self._images)
@@ -54,12 +76,15 @@ def build_boxlist(fname, single_block=False):
     if single_block:
         boxes = boxes[:1]
     boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
-    target = BoxList(boxes, (width, height), mode="xyxy")
+    assert (boxes[:,1] == boxes[:,3]).nonzero().sum() == 0
 
     classes = torch.tensor([1]*len(boxes), dtype=torch.int32)
-    target.add_field('labels', classes)
 
-    return target
+    return {
+        'boxes': boxes,
+        'labels': classes,
+    }
+
 
 
 if __name__ == '__main__':
