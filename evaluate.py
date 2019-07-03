@@ -65,6 +65,7 @@ class IlabsEvaluator:
             self._update(predicted, gt)
 
     def _update(self, predicted, target):
+        predicted_high_score = [p for p in predicted if p['score'] >= self._threshold]
         gt_boxes = target['boxes']
         gt_labels = target['labels']
         assigned = {}
@@ -78,7 +79,7 @@ class IlabsEvaluator:
                     'score': p['score'],
                     'bbox' : p['bbox'],
                 }
-                for p in predicted if p['id'] not in assigned and p['score'] >= self._threshold
+                for p in predicted_high_score if p['id'] not in assigned
             ]
 
             if not candidates:
@@ -94,7 +95,7 @@ class IlabsEvaluator:
 
         tp = len(assigned)
         fn = len(gt_boxes) - len(assigned)  # these boxes were not found by predictor (False Negatives)
-        fp = len(predicted) - len(assigned)  # these boxes were predicted, but not matched (False positives)
+        fp = len(predicted_high_score) - len(assigned)  # these boxes were predicted, but not matched (False positives)
         miou = sum(p['iou'] for p in assigned.values()) / (len(assigned) + 1.e-7)  # mean iou - how precise our tp boxes are
 
         self._stats['tp'] += tp
