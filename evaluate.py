@@ -39,6 +39,8 @@ class IlabsEvaluator:
 
     def __init__(self):
         self._stats = collections.defaultdict(int)
+        self._tp_scores = []
+        self._fp_scores = []
 
     def update(self, outputs, targets):
 
@@ -102,12 +104,15 @@ class IlabsEvaluator:
         self._stats['total_gt'] += len(gt_boxes)
         self._stats['total_predicted'] += len(predicted)
 
-    def accumulate(self):
-        pass
+        self._tp_scores.extend(p['score'] for p in predicted if p['id'] in assigned)
+        self._fp_scores.extend(p['score'] for p in predicted if p['id'] is not in assigned)
 
     def summarize(self):
         for k in sorted(self._stats.keys()):
             print(k, '\t', self._stats[k])
+
+        mean_tp_score = sum(self._tp_scores) / (len(self._tp_scores) + 1e-7)
+        mean_fp_score = sum(self._fp_scores) / (len(self._fp_scores) + 1e-7)
 
 
 def area(l, t, r, b):
