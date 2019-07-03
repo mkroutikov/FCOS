@@ -41,7 +41,7 @@ class IlabsEvaluator:
         self._stats = collections.defaultdict(int)
         self._tp_scores = []
         self._fp_scores = []
-        self._treshold = threshold
+        self._threshold = threshold
 
     def update(self, outputs, targets):
 
