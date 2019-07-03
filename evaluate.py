@@ -37,7 +37,7 @@ def evaluate(model, data_loader, device, print_every=1):
 
 class IlabsEvaluator:
 
-    def __init__(self, threshold=0.6):
+    def __init__(self, threshold=0.7):
         self._stats = collections.defaultdict(int)
         self._tp_scores = []
         self._fp_scores = []
