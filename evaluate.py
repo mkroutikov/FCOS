@@ -60,7 +60,6 @@ class IlabsEvaluator:
                     'bbox' : box
                 }
                 for k, box in enumerate(boxes)
-                if scores[k] >= self._threshold
             ]
 
             self._update(predicted, gt)
@@ -79,7 +78,7 @@ class IlabsEvaluator:
                     'score': p['score'],
                     'bbox' : p['bbox'],
                 }
-                for p in predicted if p['id'] not in assigned
+                for p in predicted if p['id'] not in assigned and p['score'] >= self._threshold
             ]
 
             if not candidates:
