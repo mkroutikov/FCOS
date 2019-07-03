@@ -37,10 +37,11 @@ def evaluate(model, data_loader, device, print_every=1):
 
 class IlabsEvaluator:
 
-    def __init__(self):
+    def __init__(self, threshold=0.6):
         self._stats = collections.defaultdict(int)
         self._tp_scores = []
         self._fp_scores = []
+        self._treshold = threshold
 
     def update(self, outputs, targets):
 
@@ -59,6 +60,7 @@ class IlabsEvaluator:
                     'bbox' : box
                 }
                 for k, box in enumerate(boxes)
+                if scores[k] >= self._threshold
             ]
 
             self._update(predicted, gt)
