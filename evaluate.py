@@ -113,6 +113,8 @@ class IlabsEvaluator:
 
         mean_tp_score = sum(self._tp_scores) / (len(self._tp_scores) + 1e-7)
         mean_fp_score = sum(self._fp_scores) / (len(self._fp_scores) + 1e-7)
+        print('mean_tp_score', mean_tp_score)
+        print('mean_fp_score', mean_fp_score)
 
 
 def area(l, t, r, b):
